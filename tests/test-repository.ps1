@@ -54,18 +54,22 @@ foreach ($required in @(
     if ($compatibilityText -notlike "*$required*") { throw "Installer compatibility script is missing required contract marker: $required" }
 }
 
-# Unit-test release helper URL construction. Build the URI through the same helper
-# used by integration tests and assert the exact value under both PS 5.1 and PS 7.
+# Unit-test CalVer parsing and previous-stable selection without any network dependency.
 . $releaseHelperPath
-$tagPageUri = Get-HermesTagsPageUri -Page 1
-$expectedTagPageUri = 'https://api.github.com/repos/NousResearch/hermes-agent/tags?per_page=100&page=1'
-if ($tagPageUri -cne $expectedTagPageUri) {
-    throw "Tags pagination URI is invalid: '$tagPageUri'."
-}
 $older = ConvertTo-HermesCalVer -Tag 'v2026.9.7'
 $newer = ConvertTo-HermesCalVer -Tag 'v2026.9.11'
 if (-not $older -or -not $newer -or $older.Key -ge $newer.Key) {
     throw 'CalVer ordering fixture failed for v2026.9.7 < v2026.9.11.'
+}
+$previousFixture = Select-HermesPreviousStableTag -BeforeTag 'v2026.9.11' -TagNames @(
+    'backup/not-a-release',
+    'v2026.9.11',
+    'v2026.9.7',
+    'v2026.8.30',
+    'v2026.9.7.1'
+)
+if ($previousFixture -cne 'v2026.9.7.1') {
+    throw "Previous stable tag selection fixture failed: '$previousFixture'."
 }
 
 # Fixture-test the isolated human-readable gateway parser.
