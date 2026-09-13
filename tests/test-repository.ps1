@@ -45,7 +45,7 @@ foreach ($required in @(
 foreach ($required in @(
     'function Install-HermesStableCommit',
     'function Repair-HermesStableTrackedCheckout',
-    "@('reset', '--hard', $Commit)",
+    '@(''reset'', ''--hard'', $Commit)',
     "'status', '--porcelain', '--untracked-files=no'",
     "'-Branch'",
     'release tag',
