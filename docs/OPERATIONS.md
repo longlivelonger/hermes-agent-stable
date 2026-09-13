@@ -16,7 +16,9 @@ A changed manifest is committed only after:
 2. the same tests on PowerShell 7;
 3. clean Scoop install and exact commit verification;
 4. real previous-stable -> target-stable lifecycle update test;
-5. intentional invalid target test that must rollback code and import backup successfully.
+5. intentional failure after installing a different real commit and changing a user marker, verifying restoration of both the original commit and marker contents.
+
+Code pushes and manual workflow runs execute the installation checks even when the generated manifest is unchanged. Scheduled checks skip installation tests when there is nothing new to publish.
 
 If any stage fails, the old checked-in manifest remains published.
 
@@ -68,7 +70,7 @@ A dirty checkout is refused. An existing Hermes installation whose exact git com
 
 Running profiles are discovered from documented human-readable `hermes gateway list` output. Parsing is isolated and fixture-tested. Multiplex mode restarts only the default gateway.
 
-If upstream changes the output format, automatic restart may degrade to a warning rather than guessing profile names.
+Failure to query gateway state aborts the update before gateways are stopped. Process inspection and gateway stop failures also abort the update.
 
 ## Scoop uninstall behavior
 

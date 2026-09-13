@@ -23,6 +23,8 @@ concurrency:
 jobs:
   update:
     runs-on: windows-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout bucket
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,7 +56,7 @@ jobs:
           }
 
       - name: Install Scoop for package test
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || github.event_name != 'schedule'
         shell: pwsh
         run: |
           Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
@@ -67,7 +69,7 @@ jobs:
           }
 
       - name: Clean-install generated package on isolated Hermes home
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || github.event_name != 'schedule'
         shell: pwsh
         run: |
           $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install'
@@ -89,7 +91,7 @@ jobs:
           if ($head.Trim().ToLowerInvariant() -ne '${{ steps.manifest.outputs.commit }}') { throw "Clean install commit mismatch: $head" }
 
       - name: Integration-test real upgrade and rollback lifecycle
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || github.event_name != 'schedule'
         shell: pwsh
         run: ./tests/integration-lifecycle.ps1 -TargetTag '${{ steps.manifest.outputs.tag }}' -TargetCommit '${{ steps.manifest.outputs.commit }}'
 

@@ -124,6 +124,8 @@ if (($parsed -join ',') -ne 'default,coder') { throw "Gateway parser fixture fai
 $parsedMultiplex = @(ConvertFrom-HermesStableGatewayListOutput -Lines $fixture -Multiplex:$true)
 if (($parsedMultiplex -join ',') -ne 'default') { throw "Gateway multiplex parser fixture failed: $($parsedMultiplex -join ',')" }
 
+& (Join-Path $PSScriptRoot 'test-failure-safety.ps1')
+
 if (-not (Test-Path -LiteralPath $manifestPath)) {
     Write-Warning 'Generated manifest is not present yet. This is expected before the first update-stable workflow run.'
     Write-Host 'Repository tests passed without generated manifest.' -ForegroundColor Green

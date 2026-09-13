@@ -46,19 +46,49 @@ try {
     if (-not $receipt.backup -or -not (Test-HermesStableBackupArchive -Path ([string]$receipt.backup))) { throw 'Update did not produce a valid full backup.' }
 
     Write-Host '=== Intentional failure to exercise automatic rollback ==='
-    $badCommit = ('0' * 39) + '1'
+    # Install a real different revision and corrupt the marker before failing.
+    # A no-op code/data rollback must not be able to pass this test.
+    $failureEvidence = Join-Path $work 'failed-install-commit.txt'
+    $failingInstaller = Join-Path $installerDir 'fail-after-install.ps1'
+    $failureScript = @'
+param(
+    [string]$Commit, [switch]$ForceCommit, [switch]$SkipSetup,
+    [switch]$NonInteractive, [string]$HermesHome, [string]$InstallDir,
+    [string]$Branch
+)
+$ErrorActionPreference = 'Stop'
+$installerArgs = @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '__INSTALLER__',
+    '-Commit', $Commit, '-ForceCommit', '-SkipSetup', '-NonInteractive',
+    '-HermesHome', $HermesHome, '-InstallDir', $InstallDir
+)
+if ($Branch) { $installerArgs += @('-Branch', $Branch) }
+& powershell.exe @installerArgs
+if ($LASTEXITCODE -ne 0) { throw 'Failure fixture could not install the previous revision.' }
+$head = & git -C $InstallDir rev-parse HEAD
+if ($LASTEXITCODE -ne 0 -or $head.Trim() -ne $Commit) { throw 'Failure fixture did not change the checkout commit.' }
+Set-Content -LiteralPath (Join-Path $HermesHome 'skills\ci-hermes-agent-stable\MARKER.txt') -Value 'changed-during-failed-install' -Encoding UTF8
+Set-Content -LiteralPath '__EVIDENCE__' -Value $head.Trim() -Encoding UTF8
+exit 73
+'@
+    $failureScript = $failureScript.Replace('__INSTALLER__', $previousInstaller.Path.Replace("'", "''")).Replace('__EVIDENCE__', $failureEvidence.Replace("'", "''"))
+    Set-Content -LiteralPath $failingInstaller -Value $failureScript -Encoding UTF8
     $failedAsExpected = $false
     try {
-        Invoke-HermesStableInstall -TargetTag 'ci-intentional-invalid' -TargetCommit $badCommit -PackageVersion '0.0.0-ci-invalid' -UpstreamInstallerPath $targetInstaller.Path
+        Invoke-HermesStableInstall -TargetTag $previousTag -TargetCommit $previousCommit -PackageVersion $previousVersion -UpstreamInstallerPath $failingInstaller
     } catch {
         $failedAsExpected = $true
         Write-Host "Expected failure observed: $($_.Exception.Message)"
     }
     if (-not $failedAsExpected) { throw 'Intentional invalid update unexpectedly succeeded.' }
+    if (-not (Test-Path -LiteralPath $failureEvidence) -or (Get-Content -Raw -LiteralPath $failureEvidence).Trim() -ne $previousCommit) {
+        throw 'Failure fixture did not reach the code/data mutation stage.'
+    }
 
     $checkoutAfterRollback = Get-HermesStableCheckoutInfo -Paths $paths
     if ($checkoutAfterRollback.Commit -ne $TargetCommit.ToLowerInvariant()) { throw 'Rollback did not restore the pre-failure commit.' }
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw 'User marker is missing after rollback/restore.' }
+    if ((Get-Content -Raw -LiteralPath $marker).Trim() -cne 'preserve-me') { throw 'Rollback did not restore the original user marker contents.' }
 
     $rollbackReceipt = Get-Content -Raw -LiteralPath (Join-Path $paths.StateDir 'last-rollback.json') | ConvertFrom-Json
     if (-not $rollbackReceipt.codeRollbackSucceeded) { throw 'Rollback integration test: code rollback did not succeed.' }

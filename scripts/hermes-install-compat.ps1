@@ -41,7 +41,8 @@ function Get-HermesStableCommand {
 function Get-HermesStableBlockingProcesses {
     param([Parameter(Mandatory = $true)][string]$InstallDir)
 
-    $normalized = [IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
+    $normalized = [IO.Path]::GetFullPath($InstallDir).Replace('/', '\').TrimEnd('\') + '\'
+    $commandPattern = '(?:^|[\s"''=])' + [regex]::Escape($normalized)
     $found = @()
     try {
         foreach ($proc in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
@@ -51,17 +52,17 @@ function Get-HermesStableBlockingProcesses {
             $owned = $false
             if ($exe) {
                 try {
-                    $fullExe = [IO.Path]::GetFullPath($exe)
+                    $fullExe = [IO.Path]::GetFullPath($exe).Replace('/', '\')
                     if ($fullExe.StartsWith($normalized, [StringComparison]::OrdinalIgnoreCase)) { $owned = $true }
                 } catch { }
             }
-            if (-not $owned -and $cmd -and $cmd.IndexOf($normalized, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $owned = $true }
+            if (-not $owned -and $cmd -and $cmd.Replace('/', '\') -match $commandPattern) { $owned = $true }
             if ($owned) {
                 $found += [pscustomobject]@{ Id = $proc.ProcessId; Name = $proc.Name; ExecutablePath = $exe }
             }
         }
     } catch {
-        Write-HermesStableWarn "Could not inspect Windows processes: $($_.Exception.Message)"
+        throw "Could not inspect Windows processes; update aborted: $($_.Exception.Message)"
     }
     return @($found)
 }

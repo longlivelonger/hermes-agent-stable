@@ -159,7 +159,7 @@ The publish workflow runs:
 
 - every 3 hours (`17 */3 * * *`),
 - manually via `workflow_dispatch`,
-- when lifecycle/generator/test code changes on `main`.
+- when lifecycle/generator/test code changes on `master`.
 
 When a manifest changes, CI must pass before publication:
 
@@ -167,7 +167,7 @@ When a manifest changes, CI must pass before publication:
 2. The same tests under PowerShell 7.
 3. A clean Scoop installation into an isolated Hermes home, verifying exact target commit.
 4. A real lifecycle integration test: fresh-install previous stable, upgrade to target stable, verify full backup and preserved user marker.
-5. An intentional invalid update that must automatically rollback exact code and restore backup data.
+5. An intentional failure after a real commit change and user-data mutation that must automatically restore the original exact commit and original data contents.
 
 Only then is the new manifest committed.
 

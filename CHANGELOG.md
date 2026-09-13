@@ -2,6 +2,12 @@
 
 ## Unreleased / reviewed v2
 
+- Refuse a fresh install over existing Hermes files when the managed CLI is missing.
+- Abort updates when process inspection or gateway state discovery fails, and report every gateway stop failure.
+- Match process ownership at directory and command argument boundaries.
+- Test rollback after a real revision change and mutation of backed-up user data.
+- Run clean install and lifecycle integration checks on code pushes and manual workflow runs even when the generated manifest is unchanged.
+
 - Pin every upstream stable release to its exact git commit SHA, not a mutable tag lookup at install time.
 - Download and SHA-256 pin the target `install.ps1` from the exact release commit.
 - Prefetch rollback `install.ps1` from the exact old commit and require `-Commit/-ForceCommit` support before updating.

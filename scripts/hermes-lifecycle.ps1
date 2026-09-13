@@ -174,8 +174,7 @@ function Get-HermesStableRunningGateways {
     # Keep parsing isolated and fixture-tested so format changes fail predictably.
     $listResult = Invoke-HermesStableCommand -HermesCommand $HermesCommand -Arguments @('gateway', 'list')
     if ($listResult.ExitCode -ne 0) {
-        Write-HermesStableWarn 'Could not snapshot gateway state; gateways will not be auto-restarted.'
-        return @()
+        throw 'Could not snapshot gateway state; update aborted before stopping gateways.'
     }
     return @(ConvertFrom-HermesStableGatewayListOutput -Lines $listResult.Output -Multiplex $multiplex)
 }
@@ -186,7 +185,7 @@ function Stop-HermesStableGateways {
         [string[]]$PreviouslyRunning = @()
     )
     $result = Invoke-HermesStableCommand -HermesCommand $HermesCommand -Arguments @('gateway', 'stop', '--all') -Echo
-    if ($result.ExitCode -ne 0 -and $PreviouslyRunning.Count -gt 0) {
+    if ($result.ExitCode -ne 0) {
         throw "Failed to stop running Hermes gateways (exit $($result.ExitCode))."
     }
 }
@@ -208,8 +207,9 @@ function Start-HermesStableGateways {
 function Get-HermesStableBlockingProcesses {
     param([Parameter(Mandatory = $true)][string]$InstallDir)
 
-    $normalized = [IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
-    $matches = New-Object System.Collections.Generic.List[object]
+    $normalized = [IO.Path]::GetFullPath($InstallDir).Replace('/', '\').TrimEnd('\') + '\'
+    $commandPattern = '(?:^|[\s"''=])' + [regex]::Escape($normalized)
+    $found = @()
     try {
         foreach ($proc in (Get-CimInstance Win32_Process -ErrorAction Stop)) {
             if ($proc.ProcessId -eq $PID) { continue }
@@ -218,19 +218,19 @@ function Get-HermesStableBlockingProcesses {
             $owned = $false
             if ($exe) {
                 try {
-                    $fullExe = [IO.Path]::GetFullPath($exe)
+                    $fullExe = [IO.Path]::GetFullPath($exe).Replace('/', '\')
                     if ($fullExe.StartsWith($normalized, [StringComparison]::OrdinalIgnoreCase)) { $owned = $true }
                 } catch { }
             }
-            if (-not $owned -and $cmd -and $cmd.IndexOf($normalized, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $owned = $true }
+            if (-not $owned -and $cmd -and $cmd.Replace('/', '\') -match $commandPattern) { $owned = $true }
             if ($owned) {
-                $matches.Add([pscustomobject]@{ Id = $proc.ProcessId; Name = $proc.Name; ExecutablePath = $exe })
+                $found += [pscustomobject]@{ Id = $proc.ProcessId; Name = $proc.Name; ExecutablePath = $exe }
             }
         }
     } catch {
-        Write-HermesStableWarn "Could not inspect Windows processes: $($_.Exception.Message)"
+        throw "Could not inspect Windows processes; update aborted: $($_.Exception.Message)"
     }
-    return @($matches)
+    return @($found)
 }
 
 function Assert-HermesStableNoBlockers {
@@ -538,6 +538,16 @@ function Invoke-HermesStableInstall {
     New-Item -ItemType Directory -Force -Path $paths.StateDir | Out-Null
     $existingHermes = Get-HermesStableCommand -Paths $paths
     $checkout = Get-HermesStableCheckoutInfo -Paths $paths
+
+    if (-not $existingHermes) {
+        $hasExistingState = Test-Path -LiteralPath $paths.InstallDir
+        if (-not $hasExistingState -and (Test-Path -LiteralPath $paths.HermesHome)) {
+            $hasExistingState = @(Get-ChildItem -LiteralPath $paths.HermesHome -Force -ErrorAction Stop).Count -gt 0
+        }
+        if ($hasExistingState) {
+            throw "Existing Hermes files were found at '$($paths.HermesHome)', but its managed CLI is missing. Repair the existing installation before updating; a fresh install would bypass backup and rollback."
+        }
+    }
 
     if ($checkout.Dirty) {
         throw "Local source changes detected in '$($paths.InstallDir)'. Commit/stash them manually before using the managed stable package."
