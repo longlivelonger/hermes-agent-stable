@@ -58,6 +58,14 @@ function ConvertTo-HermesCalVer {
     }
 }
 
+function Get-HermesTagRefsPageUri {
+    param([int]$Page = 1)
+
+    if ($Page -lt 1) { throw 'GitHub tag page number must be at least 1.' }
+    $baseUri = 'https://api.github.com/repos/NousResearch/hermes-agent/git/refs/tags'
+    return ('{0}?per_page=100&page={1}' -f $baseUri, $Page)
+}
+
 function Get-HermesPreviousStableTag {
     param([Parameter(Mandatory = $true)][string]$BeforeTag)
 
@@ -65,7 +73,6 @@ function Get-HermesPreviousStableTag {
     if (-not $before) { throw "Target tag '$BeforeTag' is not a supported Hermes CalVer tag." }
 
     $headers = Get-HermesReleaseHeaders
-    $baseUri = 'https://api.github.com/repos/NousResearch/hermes-agent/git/refs/tags'
     $refs = New-Object System.Collections.Generic.List[object]
     $page = 1
 
@@ -74,7 +81,7 @@ function Get-HermesPreviousStableTag {
             throw 'Hermes tag pagination exceeded 100 pages; refusing an unbounded GitHub API scan.'
         }
 
-        $uri = "$baseUri?per_page=100&page=$page"
+        $uri = Get-HermesTagRefsPageUri -Page $page
         Write-Host "Querying $uri for the stable tag before $BeforeTag"
         $batch = @(Invoke-RestMethod -Uri $uri -Headers $headers)
         foreach ($ref in $batch) { $refs.Add($ref) }
