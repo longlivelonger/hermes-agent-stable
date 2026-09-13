@@ -5,7 +5,7 @@ on:
     - cron: '17 */3 * * *'
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'scripts/hermes-lifecycle.ps1'
       - 'tools/**'
@@ -24,15 +24,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout bucket
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Generate manifest from latest stable release
         id: manifest
         shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/update-manifest.ps1
 
       - name: Validate repository contracts under Windows PowerShell 5.1
@@ -72,7 +70,11 @@ jobs:
         shell: pwsh
         run: |
           $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install'
-          scoop install ./bucket/hermes-agent-stable.json
+          $manifestPath = (Resolve-Path '.\bucket\hermes-agent-stable.json').Path
+          scoop install $manifestPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Scoop install failed with exit code $LASTEXITCODE."
+          }
           $candidates = @(
             (Join-Path $env:HERMES_HOME 'bin\hermes.exe'),
             (Join-Path $env:HERMES_HOME 'bin\hermes.cmd'),
@@ -88,8 +90,6 @@ jobs:
       - name: Integration-test real upgrade and rollback lifecycle
         if: steps.changes.outputs.changed == 'true'
         shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tests/integration-lifecycle.ps1 -TargetTag '${{ steps.manifest.outputs.tag }}' -TargetCommit '${{ steps.manifest.outputs.commit }}'
 
       - name: Commit published manifest
