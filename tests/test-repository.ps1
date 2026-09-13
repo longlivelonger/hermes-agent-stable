@@ -43,13 +43,15 @@ foreach ($required in @(
     if ($lifecycleText -notlike "*$required*") { throw "Lifecycle script is missing required contract marker: $required" }
 }
 foreach ($required in @(
+    'function Get-HermesStableCommand',
     'function Install-HermesStableCommit',
     'function Repair-HermesStableTrackedCheckout',
     '@(''reset'', ''--hard'', $Commit)',
     "'status', '--porcelain', '--untracked-files=no'",
     "'-Branch'",
     'release tag',
-    'exact commit verification remains authoritative'
+    'exact commit verification remains authoritative',
+    'Never fall'
 )) {
     if ($compatibilityText -notlike "*$required*") { throw "Installer compatibility script is missing required contract marker: $required" }
 }
@@ -72,9 +74,34 @@ if ($previousFixture -cne 'v2026.9.7.1') {
     throw "Previous stable tag selection fixture failed: '$previousFixture'."
 }
 
-# Fixture-test the isolated human-readable gateway parser.
 . $lifecyclePath
 . $compatibilityPath
+
+# A different Hermes executable on PATH must never make an isolated Hermes home look
+# installed. This regression previously made the E2E test confuse its clean-install
+# home with the separate upgrade/rollback home.
+$commandFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('hermes-command-fixture-' + [Guid]::NewGuid().ToString('N'))
+$fakeBin = Join-Path $commandFixtureRoot 'foreign-bin'
+$isolatedHome = Join-Path $commandFixtureRoot 'isolated-home'
+$previousPath = $env:PATH
+try {
+    New-Item -ItemType Directory -Force -Path $fakeBin | Out-Null
+    Set-Content -LiteralPath (Join-Path $fakeBin 'hermes.cmd') -Value '@echo off' -Encoding Ascii
+    $env:PATH = "$fakeBin;$previousPath"
+    $fixturePaths = [pscustomobject]@{
+        HermesHome = $isolatedHome
+        InstallDir = Join-Path $isolatedHome 'hermes-agent'
+    }
+    $resolvedForeign = Get-Command hermes -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $resolvedForeign) { throw 'PATH isolation fixture failed to expose the foreign Hermes command.' }
+    $managedCommand = Get-HermesStableCommand -Paths $fixturePaths
+    if ($managedCommand) { throw "Managed Hermes command lookup leaked across homes: '$managedCommand'." }
+} finally {
+    $env:PATH = $previousPath
+    Remove-Item -LiteralPath $commandFixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# Fixture-test the isolated human-readable gateway parser.
 $check = [char]0x2713
 $circle = [char]0x25CB
 $dash = [char]0x2014
