@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory = $true)][string]$InstallerUrl,
     [Parameter(Mandatory = $true)][string]$InstallerSha256,
     [Parameter(Mandatory = $true)][string]$LifecycleScript,
+    [string]$CompatibilityScript = '',
     [Parameter(Mandatory = $true)][string]$OutputPath
 )
 
@@ -12,6 +13,11 @@ $ErrorActionPreference = 'Stop'
 if ($Commit -notmatch '^[0-9a-fA-F]{40,64}$') { throw "Invalid release commit '$Commit'." }
 $commit = $Commit.ToLowerInvariant()
 $lines = @(Get-Content -LiteralPath $LifecycleScript)
+if ($CompatibilityScript) {
+    if (-not (Test-Path -LiteralPath $CompatibilityScript -PathType Leaf)) { throw "Compatibility script not found: $CompatibilityScript" }
+    $lines += ''
+    $lines += @(Get-Content -LiteralPath $CompatibilityScript)
+}
 $invokeLine = "Invoke-HermesStableInstall -TargetTag '$Tag' -TargetCommit '$commit' -PackageVersion '$Version' -UpstreamInstallerPath (Join-Path `$dir 'install.ps1')"
 $scriptLines = @($lines) + @($invokeLine)
 
