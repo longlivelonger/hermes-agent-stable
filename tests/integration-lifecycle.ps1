@@ -17,8 +17,7 @@ $oldHermesHome = $env:HERMES_HOME
 $env:HERMES_HOME = $hermesHome
 
 try {
-    $previous = Get-HermesStableRelease -Offset 1
-    $previousTag = [string]$previous.tag_name
+    $previousTag = Get-HermesPreviousStableTag -BeforeTag $TargetTag
     $previousCommit = Resolve-HermesTagCommit -Tag $previousTag
     $previousVersion = $previousTag -replace '^v', ''
 
