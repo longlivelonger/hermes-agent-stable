@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $lifecyclePath = Join-Path $root 'scripts\hermes-lifecycle.ps1'
 $compatibilityPath = Join-Path $root 'scripts\hermes-install-compat.ps1'
+$releaseHelperPath = Join-Path $root 'tools\hermes-release.ps1'
 $manifestPath = Join-Path $root 'bucket\hermes-agent-stable.json'
 
 # Parse every PowerShell source file with the native parser. This catches syntax errors
@@ -19,6 +20,7 @@ foreach ($file in $psFiles) {
 
 if (-not (Test-Path -LiteralPath $lifecyclePath)) { throw 'Missing lifecycle script.' }
 if (-not (Test-Path -LiteralPath $compatibilityPath)) { throw 'Missing installer compatibility script.' }
+if (-not (Test-Path -LiteralPath $releaseHelperPath)) { throw 'Missing release helper script.' }
 $lifecycleLines = @(Get-Content -LiteralPath $lifecyclePath)
 $compatibilityLines = @(Get-Content -LiteralPath $compatibilityPath)
 $lifecycleText = $lifecycleLines -join "`n"
@@ -42,11 +44,29 @@ foreach ($required in @(
 }
 foreach ($required in @(
     'function Install-HermesStableCommit',
+    'function Repair-HermesStableTrackedCheckout',
+    "@('reset', '--hard', $Commit)",
+    "'status', '--porcelain', '--untracked-files=no'",
     "'-Branch'",
     'release tag',
     'exact commit verification remains authoritative'
 )) {
     if ($compatibilityText -notlike "*$required*") { throw "Installer compatibility script is missing required contract marker: $required" }
+}
+
+# Unit-test release helper URL construction. PowerShell treats punctuation after an
+# interpolated variable surprisingly in some cases, so construct/query URLs through
+# an explicit helper and assert the exact value under both PS 5.1 and PS 7.
+. $releaseHelperPath
+$tagPageUri = Get-HermesTagRefsPageUri -Page 1
+$expectedTagPageUri = 'https://api.github.com/repos/NousResearch/hermes-agent/git/refs/tags?per_page=100&page=1'
+if ($tagPageUri -cne $expectedTagPageUri) {
+    throw "Tag refs pagination URI is invalid: '$tagPageUri'."
+}
+$older = ConvertTo-HermesCalVer -Tag 'v2026.9.7'
+$newer = ConvertTo-HermesCalVer -Tag 'v2026.9.11'
+if (-not $older -or -not $newer -or $older.Key -ge $newer.Key) {
+    throw 'CalVer ordering fixture failed for v2026.9.7 < v2026.9.11.'
 }
 
 # Fixture-test the isolated human-readable gateway parser.
