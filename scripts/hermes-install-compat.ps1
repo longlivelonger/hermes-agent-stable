@@ -7,6 +7,10 @@
 # multiple homes and for CI, where a clean-install test runs before an isolated
 # lifecycle integration test.
 #
+# PowerShell 7 can throw `Argument types do not match` when the base lifecycle
+# implementation wraps a generic List[object] containing CIM-derived PSCustomObjects
+# in @(...). Override the blocker scan with a native PowerShell array instead.
+#
 # Upstream issue #68058: on some Windows hosts a fresh clone made from the default
 # branch is materialized with CRLF before install.ps1 pins core.autocrlf=false.
 # The later checkout to a release commit then sees synthetic local changes and aborts.
@@ -32,6 +36,34 @@ function Get-HermesStableCommand {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
     }
     return $null
+}
+
+function Get-HermesStableBlockingProcesses {
+    param([Parameter(Mandatory = $true)][string]$InstallDir)
+
+    $normalized = [IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
+    $found = @()
+    try {
+        foreach ($proc in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
+            if ($proc.ProcessId -eq $PID) { continue }
+            $exe = "$($proc.ExecutablePath)"
+            $cmd = "$($proc.CommandLine)"
+            $owned = $false
+            if ($exe) {
+                try {
+                    $fullExe = [IO.Path]::GetFullPath($exe)
+                    if ($fullExe.StartsWith($normalized, [StringComparison]::OrdinalIgnoreCase)) { $owned = $true }
+                } catch { }
+            }
+            if (-not $owned -and $cmd -and $cmd.IndexOf($normalized, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $owned = $true }
+            if ($owned) {
+                $found += [pscustomobject]@{ Id = $proc.ProcessId; Name = $proc.Name; ExecutablePath = $exe }
+            }
+        }
+    } catch {
+        Write-HermesStableWarn "Could not inspect Windows processes: $($_.Exception.Message)"
+    }
+    return @($found)
 }
 
 function Repair-HermesStableTrackedCheckout {
