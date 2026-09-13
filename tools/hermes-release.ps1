@@ -31,6 +31,61 @@ function Get-HermesStableRelease {
     return $stable[$Offset]
 }
 
+function ConvertTo-HermesCalVer {
+    param([Parameter(Mandatory = $true)][string]$Tag)
+
+    if ($Tag -notmatch '^v(?<year>\d{4})\.(?<month>\d{1,2})\.(?<day>\d{1,2})(?:\.(?<patch>\d+))?$') {
+        return $null
+    }
+
+    $year = [int]$Matches['year']
+    $month = [int]$Matches['month']
+    $day = [int]$Matches['day']
+    $patch = if ($Matches['patch']) { [int]$Matches['patch'] } else { 0 }
+
+    if ($month -lt 1 -or $month -gt 12 -or $day -lt 1 -or $day -gt 31 -or $patch -lt 0 -or $patch -gt 999999) {
+        return $null
+    }
+
+    $key = ([int64]$year * 10000000000L) + ([int64]$month * 100000000L) + ([int64]$day * 1000000L) + [int64]$patch
+    return [pscustomobject]@{
+        Tag = $Tag
+        Year = $year
+        Month = $month
+        Day = $day
+        Patch = $patch
+        Key = $key
+    }
+}
+
+function Get-HermesPreviousStableTag {
+    param([Parameter(Mandatory = $true)][string]$BeforeTag)
+
+    $before = ConvertTo-HermesCalVer -Tag $BeforeTag
+    if (-not $before) { throw "Target tag '$BeforeTag' is not a supported Hermes CalVer tag." }
+
+    $headers = Get-HermesReleaseHeaders
+    $uri = 'https://api.github.com/repos/NousResearch/hermes-agent/git/refs/tags'
+    Write-Host "Querying $uri for the stable tag before $BeforeTag"
+    $refs = @(Invoke-RestMethod -Uri $uri -Headers $headers)
+
+    $candidates = New-Object System.Collections.Generic.List[object]
+    foreach ($ref in $refs) {
+        $name = [string]$ref.ref
+        if (-not $name.StartsWith('refs/tags/')) { continue }
+        $tag = $name.Substring('refs/tags/'.Length)
+        $parsed = ConvertTo-HermesCalVer -Tag $tag
+        if ($parsed -and $parsed.Key -lt $before.Key) {
+            $candidates.Add($parsed)
+        }
+    }
+
+    if ($candidates.Count -eq 0) { throw "Could not find an older Hermes CalVer tag before '$BeforeTag'." }
+    $previous = $candidates | Sort-Object Key -Descending | Select-Object -First 1
+    Write-Host "Previous Hermes stable tag selected for integration test: $($previous.Tag)"
+    return [string]$previous.Tag
+}
+
 function Get-HermesReleaseByTag {
     param([Parameter(Mandatory = $true)][string]$Tag)
 
