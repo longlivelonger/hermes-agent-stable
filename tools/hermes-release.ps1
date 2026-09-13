@@ -58,41 +58,19 @@ function ConvertTo-HermesCalVer {
     }
 }
 
-function Get-HermesTagsPageUri {
-    param([int]$Page = 1)
-
-    if ($Page -lt 1) { throw 'GitHub tag page number must be at least 1.' }
-    $baseUri = 'https://api.github.com/repos/NousResearch/hermes-agent/tags'
-    return ('{0}?per_page=100&page={1}' -f $baseUri, $Page)
-}
-
-function Get-HermesPreviousStableTag {
-    param([Parameter(Mandatory = $true)][string]$BeforeTag)
+function Select-HermesPreviousStableTag {
+    param(
+        [Parameter(Mandatory = $true)][string]$BeforeTag,
+        [Parameter(Mandatory = $true)][string[]]$TagNames
+    )
 
     $before = ConvertTo-HermesCalVer -Tag $BeforeTag
     if (-not $before) { throw "Target tag '$BeforeTag' is not a supported Hermes CalVer tag." }
 
-    $headers = Get-HermesReleaseHeaders
-    $tags = New-Object System.Collections.Generic.List[object]
-    $page = 1
-
-    do {
-        if ($page -gt 100) {
-            throw 'Hermes tag pagination exceeded 100 pages; refusing an unbounded GitHub API scan.'
-        }
-
-        $uri = Get-HermesTagsPageUri -Page $page
-        Write-Host "Querying $uri for the stable tag before $BeforeTag"
-        $batch = @(Invoke-RestMethod -Uri $uri -Headers $headers)
-        foreach ($entry in $batch) { $tags.Add($entry) }
-        $page++
-    } while ($batch.Count -eq 100)
-
     $candidates = New-Object System.Collections.Generic.List[object]
-    foreach ($entry in $tags) {
-        $tag = [string]$entry.name
+    foreach ($tag in $TagNames) {
         if ([string]::IsNullOrWhiteSpace($tag)) { continue }
-        $parsed = ConvertTo-HermesCalVer -Tag $tag
+        $parsed = ConvertTo-HermesCalVer -Tag $tag.Trim()
         if ($parsed -and $parsed.Key -lt $before.Key) {
             $candidates.Add($parsed)
         }
@@ -100,8 +78,50 @@ function Get-HermesPreviousStableTag {
 
     if ($candidates.Count -eq 0) { throw "Could not find an older Hermes CalVer tag before '$BeforeTag'." }
     $previous = $candidates | Sort-Object Key -Descending | Select-Object -First 1
-    Write-Host "Previous Hermes stable tag selected for integration test: $($previous.Tag)"
     return [string]$previous.Tag
+}
+
+function Get-HermesRemoteTagNames {
+    $git = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $git -or -not $git.Source) {
+        throw 'Git is required for integration-test stable tag discovery.'
+    }
+
+    $remote = 'https://github.com/NousResearch/hermes-agent.git'
+    Write-Host "Querying all upstream tag refs with git ls-remote: $remote"
+    $previousEap = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $global:LASTEXITCODE = 0
+        $output = & $git.Source ls-remote --tags --refs $remote 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
+    if ($exitCode -ne 0) {
+        $detail = (@($output | ForEach-Object { "$_" }) -join ' ').Trim()
+        throw "git ls-remote failed while discovering Hermes tags (exit $exitCode): $detail"
+    }
+
+    $names = New-Object System.Collections.Generic.List[string]
+    foreach ($line in @($output)) {
+        $text = "$line".Trim()
+        if ($text -match '^[0-9a-fA-F]{40,64}\s+refs/tags/(?<tag>.+)$') {
+            $tag = [string]$Matches['tag']
+            if ($tag -and -not $names.Contains($tag)) { $names.Add($tag) }
+        }
+    }
+    if ($names.Count -eq 0) { throw 'git ls-remote returned no Hermes tag refs.' }
+    return @($names)
+}
+
+function Get-HermesPreviousStableTag {
+    param([Parameter(Mandatory = $true)][string]$BeforeTag)
+
+    $tags = @(Get-HermesRemoteTagNames)
+    $previous = Select-HermesPreviousStableTag -BeforeTag $BeforeTag -TagNames $tags
+    Write-Host "Previous Hermes stable tag selected for integration test: $previous"
+    return $previous
 }
 
 function Get-HermesReleaseByTag {
