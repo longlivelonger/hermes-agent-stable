@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $root 'tools\hermes-release.ps1')
 . (Join-Path $root 'scripts\hermes-lifecycle.ps1')
+. (Join-Path $root 'scripts\hermes-install-compat.ps1')
 
 if (-not $env:RUNNER_TEMP) { throw 'integration-lifecycle.ps1 is intended for a disposable Windows CI runner.' }
 $work = Join-Path $env:RUNNER_TEMP ('hermes-stable-integration-' + [Guid]::NewGuid().ToString('N'))
