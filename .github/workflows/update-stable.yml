@@ -8,6 +8,7 @@ on:
     branches: [master]
     paths:
       - 'scripts/hermes-lifecycle.ps1'
+      - 'scripts/hermes-install-compat.ps1'
       - 'tools/**'
       - 'tests/**'
       - '.github/workflows/update-stable.yml'
@@ -68,10 +69,6 @@ jobs:
       - name: Clean-install generated package on isolated Hermes home
         if: steps.changes.outputs.changed == 'true'
         shell: pwsh
-        env:
-          GIT_CONFIG_COUNT: '1'
-          GIT_CONFIG_KEY_0: core.autocrlf
-          GIT_CONFIG_VALUE_0: 'false'
         run: |
           $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install'
           $manifestPath = (Resolve-Path '.\bucket\hermes-agent-stable.json').Path
@@ -94,10 +91,6 @@ jobs:
       - name: Integration-test real upgrade and rollback lifecycle
         if: steps.changes.outputs.changed == 'true'
         shell: pwsh
-        env:
-          GIT_CONFIG_COUNT: '1'
-          GIT_CONFIG_KEY_0: core.autocrlf
-          GIT_CONFIG_VALUE_0: 'false'
         run: ./tests/integration-lifecycle.ps1 -TargetTag '${{ steps.manifest.outputs.tag }}' -TargetCommit '${{ steps.manifest.outputs.commit }}'
 
       - name: Commit published manifest
