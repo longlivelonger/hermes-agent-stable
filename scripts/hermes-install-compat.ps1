@@ -10,6 +10,44 @@
 # retaining -Commit <exact-sha> + -ForceCommit as the source of truth. `git clone
 # --branch` accepts tags, so a fresh shallow clone starts at the desired release
 # tree and the subsequent exact-SHA pin does not need to replace its worktree.
+#
+# Some upstream installer paths still leave tracked files marked modified from
+# line-ending normalization. After the installer succeeds we reset TRACKED files
+# back to the exact pinned commit. We intentionally do not run `git clean`, so
+# untracked files are preserved.
+
+function Repair-HermesStableTrackedCheckout {
+    param(
+        [Parameter(Mandatory = $true)][string]$Commit,
+        [Parameter(Mandatory = $true)]$Paths,
+        [string]$Label = 'target'
+    )
+
+    $git = Get-HermesStableGit -Paths $Paths
+    if (-not $git) { throw "Git is unavailable after installing Hermes $Label commit $Commit." }
+    if (-not (Test-Path -LiteralPath (Join-Path $Paths.InstallDir '.git') -PathType Container)) {
+        throw "Hermes $Label install directory is not a git checkout after installation."
+    }
+
+    Write-HermesStableInfo "Normalizing tracked checkout to exact $label commit $Commit"
+    $reset = Invoke-HermesStableGit -Git $git -InstallDir $Paths.InstallDir -Arguments @('reset', '--hard', $Commit)
+    if ($reset.ExitCode -ne 0) {
+        throw "Failed to normalize Hermes $label tracked checkout to $Commit."
+    }
+
+    $head = Invoke-HermesStableGit -Git $git -InstallDir $Paths.InstallDir -Arguments @('rev-parse', 'HEAD')
+    if ($head.ExitCode -ne 0 -or $head.Output.Trim().ToLowerInvariant() -ne $Commit.ToLowerInvariant()) {
+        throw "Hermes $label checkout verification failed after normalization."
+    }
+
+    $trackedStatus = Invoke-HermesStableGit -Git $git -InstallDir $Paths.InstallDir -Arguments @('status', '--porcelain', '--untracked-files=no')
+    if ($trackedStatus.ExitCode -ne 0) {
+        throw "Could not verify Hermes $label tracked checkout cleanliness after normalization."
+    }
+    if (-not [string]::IsNullOrWhiteSpace($trackedStatus.Output)) {
+        throw "Hermes $label tracked checkout remains modified after normalization: $($trackedStatus.Output)"
+    }
+}
 
 function Install-HermesStableCommit {
     param(
@@ -55,4 +93,6 @@ function Install-HermesStableCommit {
     if ($exitCode -ne 0) {
         throw "Upstream Hermes installer returned failure for $label commit $Commit (exit $exitCode)."
     }
+
+    Repair-HermesStableTrackedCheckout -Commit $Commit -Paths $Paths -Label $Label
 }
