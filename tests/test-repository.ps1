@@ -54,14 +54,13 @@ foreach ($required in @(
     if ($compatibilityText -notlike "*$required*") { throw "Installer compatibility script is missing required contract marker: $required" }
 }
 
-# Unit-test release helper URL construction. PowerShell treats punctuation after an
-# interpolated variable surprisingly in some cases, so construct/query URLs through
-# an explicit helper and assert the exact value under both PS 5.1 and PS 7.
+# Unit-test release helper URL construction. Build the URI through the same helper
+# used by integration tests and assert the exact value under both PS 5.1 and PS 7.
 . $releaseHelperPath
-$tagPageUri = Get-HermesTagRefsPageUri -Page 1
-$expectedTagPageUri = 'https://api.github.com/repos/NousResearch/hermes-agent/git/refs/tags?per_page=100&page=1'
+$tagPageUri = Get-HermesTagsPageUri -Page 1
+$expectedTagPageUri = 'https://api.github.com/repos/NousResearch/hermes-agent/tags?per_page=100&page=1'
 if ($tagPageUri -cne $expectedTagPageUri) {
-    throw "Tag refs pagination URI is invalid: '$tagPageUri'."
+    throw "Tags pagination URI is invalid: '$tagPageUri'."
 }
 $older = ConvertTo-HermesCalVer -Tag 'v2026.9.7'
 $newer = ConvertTo-HermesCalVer -Tag 'v2026.9.11'
