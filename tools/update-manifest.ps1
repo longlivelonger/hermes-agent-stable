@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $OutputPath) { $OutputPath = Join-Path $repoRoot 'bucket\hermes-agent-stable.json' }
 $lifecycle = Join-Path $repoRoot 'scripts\hermes-lifecycle.ps1'
+$compatibility = Join-Path $repoRoot 'scripts\hermes-install-compat.ps1'
 $builder = Join-Path $PSScriptRoot 'build-manifest.ps1'
 . (Join-Path $PSScriptRoot 'hermes-release.ps1')
 
@@ -21,7 +22,7 @@ $commit = Resolve-HermesTagCommit -Tag $tag
 $temp = Join-Path ([IO.Path]::GetTempPath()) ("hermes-install-" + [Guid]::NewGuid().ToString('N') + '.ps1')
 try {
     $installer = Save-HermesInstallerForCommit -Commit $commit -Destination $temp
-    & $builder -Version $version -Tag $tag -Commit $commit -InstallerUrl $installer.Url -InstallerSha256 $installer.Sha256 -LifecycleScript $lifecycle -OutputPath $OutputPath
+    & $builder -Version $version -Tag $tag -Commit $commit -InstallerUrl $installer.Url -InstallerSha256 $installer.Sha256 -LifecycleScript $lifecycle -CompatibilityScript $compatibility -OutputPath $OutputPath
 } finally {
     Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
 }
