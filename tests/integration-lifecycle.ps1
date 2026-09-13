@@ -10,11 +10,11 @@ $root = Split-Path -Parent $PSScriptRoot
 
 if (-not $env:RUNNER_TEMP) { throw 'integration-lifecycle.ps1 is intended for a disposable Windows CI runner.' }
 $work = Join-Path $env:RUNNER_TEMP ('hermes-stable-integration-' + [Guid]::NewGuid().ToString('N'))
-$home = Join-Path $work 'hermes-home'
+$hermesHome = Join-Path $work 'hermes-home'
 $installerDir = Join-Path $work 'installers'
 New-Item -ItemType Directory -Force -Path $installerDir | Out-Null
 $oldHermesHome = $env:HERMES_HOME
-$env:HERMES_HOME = $home
+$env:HERMES_HOME = $hermesHome
 
 try {
     $previous = Get-HermesStableRelease -Offset 1
@@ -28,7 +28,7 @@ try {
     Write-Host "=== Fresh-install previous stable: $previousTag @ $previousCommit ==="
     Invoke-HermesStableInstall -TargetTag $previousTag -TargetCommit $previousCommit -PackageVersion $previousVersion -UpstreamInstallerPath $previousInstaller.Path
 
-    $markerDir = Join-Path $home 'skills\ci-hermes-agent-stable'
+    $markerDir = Join-Path $hermesHome 'skills\ci-hermes-agent-stable'
     New-Item -ItemType Directory -Force -Path $markerDir | Out-Null
     $marker = Join-Path $markerDir 'MARKER.txt'
     Set-Content -LiteralPath $marker -Value 'preserve-me' -Encoding UTF8
