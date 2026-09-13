@@ -44,6 +44,7 @@ foreach ($required in @(
 }
 foreach ($required in @(
     'function Get-HermesStableCommand',
+    'function Get-HermesStableBlockingProcesses',
     'function Install-HermesStableCommit',
     'function Repair-HermesStableTrackedCheckout',
     '@(''reset'', ''--hard'', $Commit)',
@@ -51,7 +52,8 @@ foreach ($required in @(
     "'-Branch'",
     'release tag',
     'exact commit verification remains authoritative',
-    'Never fall'
+    'Never fall',
+    '$found = @()'
 )) {
     if ($compatibilityText -notlike "*$required*") { throw "Installer compatibility script is missing required contract marker: $required" }
 }
@@ -100,6 +102,13 @@ try {
     $env:PATH = $previousPath
     Remove-Item -LiteralPath $commandFixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+# Exercise the real CIM-based blocker scan under both PowerShell hosts. The previous
+# generic List[object] return path threw `Argument types do not match` on PowerShell 7
+# even when the scan itself succeeded.
+$blockerProbeDir = Join-Path ([IO.Path]::GetTempPath()) ('hermes-blocker-probe-' + [Guid]::NewGuid().ToString('N'))
+$blockerProbe = @(Get-HermesStableBlockingProcesses -InstallDir $blockerProbeDir)
+if ($null -eq $blockerProbe) { throw 'Blocker process probe returned null instead of an array.' }
 
 # Fixture-test the isolated human-readable gateway parser.
 $check = [char]0x2713
