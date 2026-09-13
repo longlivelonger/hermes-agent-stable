@@ -1,20 +1,38 @@
-# Compatibility override for the upstream Windows installer.
-# Embedded after hermes-lifecycle.ps1 so this function replaces the base implementation.
+# Compatibility overrides for the managed stable Windows installer.
+# Embedded after hermes-lifecycle.ps1 so these functions replace base implementations.
 # Keep compatible with Windows PowerShell 5.1.
+#
+# The wrapper must never confuse another Hermes installation on PATH with the
+# installation rooted at the current HERMES_HOME. This matters both for users with
+# multiple homes and for CI, where a clean-install test runs before an isolated
+# lifecycle integration test.
 #
 # Upstream issue #68058: on some Windows hosts a fresh clone made from the default
 # branch is materialized with CRLF before install.ps1 pins core.autocrlf=false.
 # The later checkout to a release commit then sees synthetic local changes and aborts.
-#
-# For release installs we give upstream -Branch <release-tag> as a clone hint while
-# retaining -Commit <exact-sha> + -ForceCommit as the source of truth. `git clone
-# --branch` accepts tags, so a fresh shallow clone starts at the desired release
-# tree and the subsequent exact-SHA pin does not need to replace its worktree.
+# For release installs we therefore give upstream -Branch <release-tag> as a clone
+# hint while retaining -Commit <exact-sha> + -ForceCommit as the source of truth.
 #
 # Some upstream installer paths still leave tracked files marked modified from
 # line-ending normalization. After the installer succeeds we reset TRACKED files
 # back to the exact pinned commit. We intentionally do not run `git clean`, so
 # untracked files are preserved.
+
+function Get-HermesStableCommand {
+    param([Parameter(Mandatory = $true)]$Paths)
+
+    # Managed lifecycle operations are scoped to this Hermes home only. Never fall
+    # back to an arbitrary `hermes` found on PATH: it may belong to another home.
+    $candidates = @(
+        (Join-Path $Paths.HermesHome 'bin\hermes.exe'),
+        (Join-Path $Paths.HermesHome 'bin\hermes.cmd'),
+        (Join-Path $Paths.InstallDir 'venv\Scripts\hermes.exe')
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $null
+}
 
 function Repair-HermesStableTrackedCheckout {
     param(
