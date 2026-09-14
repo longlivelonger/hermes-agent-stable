@@ -18,11 +18,14 @@ const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-s
     app = await _electron.launch({ executablePath, env, timeout: 120000 });
     const page = await app.firstWindow({ timeout: 120000 });
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForFunction(() => document.body?.innerText.trim().length > 30, { timeout: 120000 });
+    await page.waitForFunction(() => {
+      const text = document.getElementById('root')?.textContent || '';
+      return /provider|API key|Sign in/i.test(text);
+    }, undefined, { timeout: 120000 });
     const text = await page.locator('body').innerText();
     fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'hermes-release', 'desktop-smoke.txt'), text);
     await page.screenshot({ path: path.join(process.env.RUNNER_TEMP, 'hermes-release', 'desktop-smoke.png') });
-    if (/ERR_FILE_NOT_FOUND|Cannot find module|JavaScript error occurred/i.test(text)) throw new Error(text);
+    if (/ERR_FILE_NOT_FOUND|Cannot find module|JavaScript error occurred|No QueryClient set|Something broke in the interface|Boot failed|Failed to start/i.test(text)) throw new Error(text);
     console.log('Packaged Desktop renderer opened:', text.slice(0, 500));
   } finally {
     if (app) await app.close();

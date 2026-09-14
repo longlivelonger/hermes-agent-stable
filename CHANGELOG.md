@@ -1,5 +1,12 @@
 # Changelog
 
+## Desktop packaging
+
+- Build a Windows x64 Desktop ZIP from the exact stable Agent commit and publish it after Scoop installation, packaged UI launch, and lifecycle checks.
+- Add the Hermes Stable Start menu launcher and restore the previous Desktop payload if installation fails.
+- Preserve the upstream manual updater; Scoop and UniGetUI remain the supported update path for the paired package.
+- Add immutable release assets, SHA-256 checksums, build provenance, and a packaging revision suffix.
+
 ## Unreleased / reviewed v2
 
 - Refuse a fresh install over existing Hermes files when the managed CLI is missing.
