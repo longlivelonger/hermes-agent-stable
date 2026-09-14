@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
 & (Join-Path $PSScriptRoot 'test-desktop.ps1')
+& (Join-Path $PSScriptRoot 'test-installer-stderr.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 $lifecyclePath = Join-Path $root 'scripts\hermes-lifecycle.ps1'
 $compatibilityPath = Join-Path $root 'scripts\hermes-install-compat.ps1'

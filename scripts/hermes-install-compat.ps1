@@ -135,9 +135,15 @@ function Install-HermesStableCommit {
         $arguments += @('-Branch', $branchHint)
     }
 
-    $global:LASTEXITCODE = 0
-    $output = & $powershellExe @arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    $savedPreference = $ErrorActionPreference
+    try {
+        # PowerShell 5.1 turns native stderr into ErrorRecords. Diagnostics
+        # must not interrupt the child before its actual exit code is known.
+        $ErrorActionPreference = 'Continue'
+        $global:LASTEXITCODE = 0
+        $output = & $powershellExe @arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $savedPreference }
     foreach ($line in @($output)) {
         if ($null -ne $line -and "$line".Length -gt 0) { Write-Host "$line" }
     }

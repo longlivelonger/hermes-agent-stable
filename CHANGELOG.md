@@ -2,6 +2,8 @@
 
 ## Desktop packaging
 
+- Revision 3 accepts native installer diagnostics on stderr in Windows PowerShell 5.1 while still rejecting nonzero process exit codes.
+
 - Revision 2 keeps the working Desktop in place until a cross-volume payload transfer completes. Regression coverage injects a partial transfer failure.
 
 - Build a Windows x64 Desktop ZIP from the exact stable Agent commit and publish it after Scoop installation, packaged UI launch, and lifecycle checks.
