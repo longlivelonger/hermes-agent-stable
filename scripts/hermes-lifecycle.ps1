@@ -370,6 +370,7 @@ function Save-HermesStableRollbackInstaller {
         if (-not (Test-HermesStableInstallerCommitCapability -InstallerPath $final)) {
             throw "Old-commit installer at $commit does not support deterministic -Commit/-ForceCommit rollback."
         }
+        Assert-HermesStableInstallerPolicy -Installer $final
     } finally {
         Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
     }
@@ -564,6 +565,8 @@ function Invoke-HermesStableInstall {
     if ($checkout.Dirty) {
         throw "Local source changes detected in '$($paths.InstallDir)'. Commit/stash them manually before using the managed stable package."
     }
+
+    Assert-HermesStableInstallerPolicy -Installer $UpstreamInstallerPath
 
     $oldTag = $checkout.Tag
     $oldCommit = $checkout.Commit

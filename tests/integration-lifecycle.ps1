@@ -55,28 +55,15 @@ try {
     # A no-op code/data rollback must not be able to pass this test.
     $failureEvidence = Join-Path $work 'failed-install-commit.txt'
     $failingInstaller = Join-Path $installerDir 'fail-after-install.ps1'
-    $failureScript = @'
-param(
-    [string]$Commit, [switch]$ForceCommit, [switch]$SkipSetup,
-    [switch]$NonInteractive, [string]$HermesHome, [string]$InstallDir,
-    [string]$Branch
-)
-$ErrorActionPreference = 'Stop'
-$installerArgs = @(
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '__INSTALLER__',
-    '-Commit', $Commit, '-ForceCommit', '-SkipSetup', '-NonInteractive',
-    '-HermesHome', $HermesHome, '-InstallDir', $InstallDir
-)
-if ($Branch) { $installerArgs += @('-Branch', $Branch) }
-& powershell.exe @installerArgs
-if ($LASTEXITCODE -ne 0) { throw 'Failure fixture could not install the previous revision.' }
+    $failureScript = (Get-Content -LiteralPath $previousInstaller.Path -Raw) + "`n" + @'
+# Fail only after the real pinned installer has completed successfully.
 $head = & git -C $InstallDir rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $head.Trim() -ne $Commit) { throw 'Failure fixture did not change the checkout commit.' }
 Set-Content -LiteralPath (Join-Path $HermesHome 'skills\ci-hermes-agent-stable\MARKER.txt') -Value 'changed-during-failed-install' -Encoding UTF8
 Set-Content -LiteralPath '__EVIDENCE__' -Value $head.Trim() -Encoding UTF8
 exit 73
 '@
-    $failureScript = $failureScript.Replace('__INSTALLER__', $previousInstaller.Path.Replace("'", "''")).Replace('__EVIDENCE__', $failureEvidence.Replace("'", "''"))
+    $failureScript = $failureScript.Replace('__EVIDENCE__', $failureEvidence.Replace("'", "''"))
     Set-Content -LiteralPath $failingInstaller -Value $failureScript -Encoding UTF8
     $failedAsExpected = $false
     try {

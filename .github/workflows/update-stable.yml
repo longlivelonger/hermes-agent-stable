@@ -1,6 +1,7 @@
 name: Build and release Hermes Desktop stable
 
 on:
+  pull_request:
   schedule:
     - cron: '17 */3 * * *'
   workflow_dispatch:
@@ -19,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: hermes-stable-manifest
+  group: hermes-stable-manifest-${{ github.event.pull_request.number || 'publish' }}
   cancel-in-progress: false
 
 jobs:
@@ -51,6 +52,17 @@ jobs:
       - name: Validate repository contracts under PowerShell 7
         shell: pwsh
         run: ./tests/test-repository.ps1
+
+      - name: Verify pinned installer policy under Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/test-installer-policy.ps1 -InstallerPath '${{ steps.manifest.outputs.directory }}/install.ps1'
+
+      - name: Verify pinned installer policy under PowerShell 7
+        shell: pwsh
+        run: |
+          ./tests/test-installer-policy.ps1 -InstallerPath '${{ steps.manifest.outputs.directory }}/install.ps1'
+          node ./tests/test-desktop-readiness.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop readiness regression failed.' }
 
       - name: Detect manifest changes
         id: changes
@@ -111,7 +123,7 @@ jobs:
           $head = git -C (Join-Path $env:HERMES_HOME 'hermes-agent') rev-parse HEAD
           if ($head.Trim().ToLowerInvariant() -ne '${{ steps.manifest.outputs.commit }}') { throw "Clean install commit mismatch: $head" }
 
-      - name: Launch installed Desktop and verify its renderer
+      - name: Verify Desktop renderer and backend readiness
         if: steps.changes.outputs.changed == 'true' || github.event_name != 'schedule'
         shell: pwsh
         run: |
@@ -131,7 +143,7 @@ jobs:
           ./tests/integration-lifecycle.ps1 -TargetTag '${{ steps.manifest.outputs.tag }}' -TargetCommit '${{ steps.manifest.outputs.commit }}' -DesktopSourcePath $desktop
 
       - name: Publish verified Desktop release
-        if: steps.manifest.outputs.published == 'false'
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && steps.manifest.outputs.published == 'false'
         shell: pwsh
         run: |
           $dir = '${{ steps.manifest.outputs.directory }}'
@@ -139,7 +151,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed; manifest will not be committed.' }
 
       - name: Commit published manifest
-        if: steps.changes.outputs.changed == 'true'
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && steps.changes.outputs.changed == 'true'
         shell: pwsh
         run: |
           git fetch origin master
@@ -155,3 +167,15 @@ jobs:
           git add bucket/hermes-agent-stable.json
           git commit -m "hermes-agent-stable: ${{ steps.manifest.outputs.version }}"
           git push
+
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stable-verification-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/hermes-release/desktop-smoke.*
+            ${{ runner.temp }}/hermes-release/release-plan.json
+            ${{ runner.temp }}/hermes-release/SHA256SUMS.txt
+          if-no-files-found: ignore
+          retention-days: 7

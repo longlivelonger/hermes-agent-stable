@@ -34,3 +34,9 @@
 - Pin `actions/checkout` by full commit SHA and log the exact Scoop revision used by CI.
 - Use GitHub `releases/latest` for normal publication lookup.
 - Parse backup retention with `Int32.TryParse` and mark `last-attempt.json` with final transaction status.
+# Unreleased
+
+- Wait for Desktop backend readiness and the expected version before passing the release smoke test; preserve diagnostics on failure.
+- Preserve native npm/Chromium exit codes on PowerShell 5.1 and refresh PATH before verifying a newly installed Computer Use driver. Incomplete component installs now fail the transaction.
+- Honor project uv settings during locked Python sync and reject unlocked fallback. Validate installer compatibility for both the target and rollback before updating.
+- Run complete release validation for pull requests without publishing. Increase packaging revision to 4.

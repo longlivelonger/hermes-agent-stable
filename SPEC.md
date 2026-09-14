@@ -187,3 +187,14 @@ The package installs a prebuilt Windows x64 Hermes Desktop alongside Agent at th
 Scoop verifies both download hashes. Runtime validates the Desktop install stamp before changing Agent, deploys Desktop only after Agent verification, and restores the previous Desktop directory if the deployment transaction fails. An open Desktop blocks updates through the existing process preflight. The Start menu launcher pins the intended Hermes home and backend checkout. Upstream manual self-update is unchanged; the supported update path is Scoop or UniGetUI.
 
 Agent backup does not include Electron's separate user-data directory. Installation does not launch Desktop or migrate that data. Previous Desktop directories remain available for manual recovery. The package is not an offline Python distribution and is not code-signed.
+
+## Stable dependency policy
+
+The downloaded upstream installer remains pinned and unmodified. The embedded compatibility layer validates its known function structure before an update and before accepting a rollback installer, then executes a temporary copy with the following policy:
+
+- Python dependencies must install through `uv sync --extra all --locked`, with the project's uv settings enabled during that command. Missing/stale locks and failed locked syncs abort instead of resolving a different dependency set from PyPI. Entry-point repair may reinstall the local package with `--no-deps` only.
+- Native dependency subprocesses retain their process handle so Windows PowerShell 5.1 reports the actual exit code. Failed npm or Chromium stages are critical failures.
+- After the Computer Use installer job finishes, the parent refreshes PATH and validates the driver's version and command manifest. An incompatible or missing driver is a critical failure.
+- The installer's outer error handler returns a nonzero exit code. Upstream function changes that the policy does not recognize fail preflight rather than silently omitting a fix.
+
+Desktop release validation waits for the setup UI to leave its loading state and for `/api/health` to return `ok: true` with the expected Agent version through the application's local IPC API. Renderer errors fail validation. Test text/screenshots are retained on failed runs as well as successful ones. Pull requests run the full build/install/upgrade/rollback checks without publishing a release or changing the public manifest.

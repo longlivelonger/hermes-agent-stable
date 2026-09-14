@@ -24,3 +24,7 @@ jobs:
       - name: Validate repository under PowerShell 7
         shell: pwsh
         run: ./tests/test-repository.ps1
+
+      - name: Reject incomplete Desktop readiness
+        shell: pwsh
+        run: node ./tests/test-desktop-readiness.cjs

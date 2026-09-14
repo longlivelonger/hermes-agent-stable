@@ -100,6 +100,96 @@ function Repair-HermesStableTrackedCheckout {
     }
 }
 
+# Adapt a copy of the hash-pinned upstream installer. Never alter the downloaded
+# original or the tracked Agent checkout. Unknown upstream shapes fail preflight.
+function ConvertTo-HermesStableInstaller {
+    param([Parameter(Mandatory = $true)][string]$Source)
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($Source, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'Cannot apply stable policy to an invalid upstream installer.' }
+    function Replace-PolicyText([string]$Text, [string]$Old, [string]$New) {
+        if ([regex]::Matches($Text, [regex]::Escape($Old)).Count -ne 1) {
+            throw "Unsupported upstream installer policy anchor: $Old"
+        }
+        return $Text.Replace($Old, $New)
+    }
+    $edits = @()
+    foreach ($name in @('Install-Dependencies', 'Install-NodeDeps', 'Install-CuaDriver')) {
+        $functions = @($ast.FindAll({ param($n)
+            $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name
+        }, $true))
+        if ($functions.Count -ne 1) { throw "Unsupported upstream installer: expected one $name function." }
+        $extent = $functions[0].Extent
+        $text = $extent.Text
+        switch ($name) {
+            'Install-Dependencies' {
+                $text = Replace-PolicyText $text 'Invoke-NativeWithRelaxedErrorAction { & $UvCmd sync --extra all --locked }' @'
+# Managed Python sets UV_NO_CONFIG=1, which also hides the project's uv
+# quarantine/override settings. Read those settings for the locked sync only.
+$stableUvNoConfig = $env:UV_NO_CONFIG
+try {
+    $env:UV_NO_CONFIG = 'false'
+    Invoke-NativeWithRelaxedErrorAction { & $UvCmd sync --extra all --locked }
+    if ($LASTEXITCODE -ne 0) { throw 'Stable dependency sync failed; refusing an unlocked PyPI fallback.' }
+} finally {
+    if ($null -eq $stableUvNoConfig) { Remove-Item Env:UV_NO_CONFIG -ErrorAction SilentlyContinue }
+    else { $env:UV_NO_CONFIG = $stableUvNoConfig }
+}
+'@
+                $text = Replace-PolicyText $text 'Write-Info "uv.lock not found -- falling back to PyPI resolve (no hash verification)"' "throw 'Stable installation requires uv.lock.'"
+                $text = Replace-PolicyText $text '& $UvCmd pip install --reinstall -e .' '& $UvCmd pip install --no-deps --reinstall -e .'
+                $text = Replace-PolicyText $text 'Write-Warn "fastapi/uvicorn not importable -- `hermes dashboard` will not work."' "throw 'Locked environment is missing Desktop backend dependencies.'"
+            }
+            'Install-NodeDeps' {
+                $text = Replace-PolicyText $text 'function Install-NodeDeps {' @'
+function Install-NodeDeps {
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { throw 'Stable installation requires npm.' }
+    # This package promises these components. An incomplete stage must fail the
+    # transaction, including errors caught and downgraded by upstream helpers.
+    function Write-Warn { param([string]$Message) throw "Stable Node dependencies: $Message" }
+'@
+                $text = Replace-PolicyText $text '$deadline = [DateTime]::UtcNow.AddSeconds($timeoutSec)' @'
+# Cache the process handle before it exits. PS 5.1 otherwise loses ExitCode.
+        $null = $proc.Handle
+        $deadline = [DateTime]::UtcNow.AddSeconds($timeoutSec)
+'@
+                $text = Replace-PolicyText $text 'return $proc.ExitCode' @'
+$proc.WaitForExit()
+        $code = $proc.ExitCode
+        $proc.Dispose()
+        if ($null -eq $code) { throw 'Native dependency process returned no exit code.' }
+        return [int]$code
+'@
+            }
+            'Install-CuaDriver' {
+                $text = Replace-PolicyText $text '$installedCuaDriver = Get-Command cua-driver -ErrorAction SilentlyContinue' @'
+# The child job cannot update its parent's environment after adding user PATH.
+            Update-ProcessPathForPackages
+            $installedCuaDriver = Get-Command cua-driver -ErrorAction SilentlyContinue
+'@
+                $text = Replace-PolicyText $text 'Write-Warn "Computer Use driver install did not produce a compatible runtime -- repair it before enabling the tool."' "throw 'Computer Use driver runtime verification failed.'"
+                $text = Replace-PolicyText $text 'Write-Warn "Computer Use driver install timed out -- it will install on demand when you enable the tool."' "throw 'Computer Use driver installation timed out.'"
+                $text = Replace-PolicyText $text 'Write-Warn "Computer Use driver install failed: $_"' 'throw "Computer Use driver installation failed: $_"'
+            }
+        }
+        $edits += @{ Start = $extent.StartOffset; Length = $extent.EndOffset - $extent.StartOffset; Text = $text }
+    }
+    foreach ($edit in ($edits | Sort-Object Start -Descending)) {
+        $Source = $Source.Remove($edit.Start, $edit.Length).Insert($edit.Start, $edit.Text)
+    }
+    # Upstream's interactive catch prints the error but can exit with code 0.
+    $Source = Replace-PolicyText $Source 'Write-Err "Installation failed: $_"' "Write-Err `"Installation failed: `$_`"`n    exit 1"
+    $null = [System.Management.Automation.Language.Parser]::ParseInput($Source, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'Stable installer policy produced invalid PowerShell.' }
+    return $Source
+}
+
+function Assert-HermesStableInstallerPolicy {
+    param([string]$Installer)
+    $null = ConvertTo-HermesStableInstaller -Source (Get-Content -LiteralPath $Installer -Raw)
+}
+
 function Install-HermesStableCommit {
     param(
         [Parameter(Mandatory = $true)][string]$Installer,
@@ -116,11 +206,14 @@ function Install-HermesStableCommit {
         $powershellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
     }
 
+    $policySource = ConvertTo-HermesStableInstaller -Source (Get-Content -LiteralPath $Installer -Raw)
+    $policyInstaller = Join-Path ([IO.Path]::GetTempPath()) ('hermes-stable-installer-' + [Guid]::NewGuid().ToString('N') + '.ps1')
+    Set-Content -LiteralPath $policyInstaller -Value $policySource -Encoding UTF8
     $arguments = @(
         '-NoProfile',
         '-NonInteractive',
         '-ExecutionPolicy', 'Bypass',
-        '-File', $Installer,
+        '-File', $policyInstaller,
         '-Commit', $Commit,
         '-ForceCommit',
         '-SkipSetup',
@@ -143,7 +236,10 @@ function Install-HermesStableCommit {
         $global:LASTEXITCODE = 0
         $output = & $powershellExe @arguments 2>&1
         $exitCode = $LASTEXITCODE
-    } finally { $ErrorActionPreference = $savedPreference }
+    } finally {
+        $ErrorActionPreference = $savedPreference
+        Remove-Item -LiteralPath $policyInstaller -Force -ErrorAction SilentlyContinue
+    }
     foreach ($line in @($output)) {
         if ($null -ne $line -and "$line".Length -gt 0) { Write-Host "$line" }
     }

@@ -3,6 +3,7 @@ $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $root 'scripts\hermes-lifecycle.ps1')
 . (Join-Path $root 'scripts\hermes-install-compat.ps1')
 function Repair-HermesStableTrackedCheckout { }
+function ConvertTo-HermesStableInstaller { param([string]$Source) $Source }
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('hermes-stderr-' + [Guid]::NewGuid().ToString('N') + '.ps1')
 try {
     foreach ($code in @(0, 73)) {

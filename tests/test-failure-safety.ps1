@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $root 'scripts\hermes-lifecycle.ps1')
 . (Join-Path $root 'scripts\hermes-install-compat.ps1')
+function Assert-HermesStableInstallerPolicy { }
 
 function Assert-FixtureThrows {
     param([scriptblock]$Action, [string]$Expected)

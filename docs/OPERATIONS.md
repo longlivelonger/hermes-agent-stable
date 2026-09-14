@@ -100,3 +100,19 @@ The `Build and release Hermes Desktop stable` workflow builds on Windows x64 usi
 Run the workflow manually or push a packaging change. Stable upstream releases are checked every three hours. Increase `packaging-revision.txt` to release changed packaging for an existing upstream version. Existing published archives are reused, never overwritten. If publication succeeds but the manifest push fails, rerun the workflow to recover without rebuilding the archive.
 
 Use the release's SHA256SUMS.txt and release-plan.json to identify the payload and source commit. Desktop smoke output and screenshot are included in the release. The ZIP contains the whole application under `desktop/`; do not distribute Hermes.exe by itself.
+
+## Dependency and readiness failures
+
+The stable wrapper applies a checked compatibility policy to a temporary copy of the pinned installer. It fixes PowerShell 5.1 process exit codes and refreshes PATH after Computer Use installation. It enables project uv configuration for locked dependency sync and refuses an unlocked fallback. npm, Chromium, Computer Use runtime validation, or locked Python sync failures abort the transaction and use the existing rollback path.
+
+`Unsupported upstream installer` means the upstream function layout changed. Review and adapt `ConvertTo-HermesStableInstaller` before publishing that release. Do not bypass this check. Both target and rollback installers must pass preflight.
+
+The Desktop test must receive a successful, matching-version backend health response and leave the startup/loading screen. A screenshot of the setup UI at 86% is not a passing readiness test. On failure, inspect the workflow's `stable-verification-<run-id>` artifact and the installation log. PR validation runs the same installation gates but cannot publish assets or commit the manifest.
+
+Focused local checks do not install an agent:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/test-installer-policy.ps1 -InstallerPath <pinned-install.ps1>
+pwsh -NoProfile -ExecutionPolicy Bypass -File tests/test-installer-policy.ps1 -InstallerPath <pinned-install.ps1>
+node tests/test-desktop-readiness.cjs
+```
