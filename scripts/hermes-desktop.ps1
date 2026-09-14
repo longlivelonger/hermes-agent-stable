@@ -18,13 +18,17 @@ function Set-HermesStableDesktop {
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     $target = Join-Path $parent 'win-unpacked'
     $previous = Join-Path $parent ('stable-previous-' + [Guid]::NewGuid().ToString('N'))
-    # Both move targets are fixed children of the managed release directory.
+    $candidate = Join-Path $parent ('stable-next-' + [Guid]::NewGuid().ToString('N'))
+    # Finish any cross-volume copy before touching the working Desktop.
+    # A partial transfer stays in a separate diagnostic directory.
+    Move-Item -LiteralPath $Stage -Destination $candidate
     $hadPrevious = Test-Path -LiteralPath $target
-    if ($hadPrevious) { Move-Item -LiteralPath $target -Destination $previous }
+    if ($hadPrevious) { Rename-Item -LiteralPath $target -NewName (Split-Path $previous -Leaf) }
     try {
-        Move-Item -LiteralPath $Stage -Destination $target
+        Rename-Item -LiteralPath $candidate -NewName 'win-unpacked'
     } catch {
-        if ($hadPrevious) { Move-Item -LiteralPath $previous -Destination $target }
+        # Rename fails instead of silently nesting the old tree in a new target.
+        if ($hadPrevious) { Rename-Item -LiteralPath $previous -NewName 'win-unpacked' }
         throw
     }
     return @{ Target = $target; Previous = $previous; HadPrevious = $hadPrevious }
@@ -34,8 +38,8 @@ function Undo-HermesStableDesktop {
     param($Deployment)
     if (-not $Deployment) { return }
     # Retain failed payload for diagnosis instead of deleting it.
-    Move-Item -LiteralPath $Deployment.Target -Destination ($Deployment.Target + '-failed-' + [Guid]::NewGuid().ToString('N'))
-    if ($Deployment.HadPrevious) { Move-Item -LiteralPath $Deployment.Previous -Destination $Deployment.Target }
+    Rename-Item -LiteralPath $Deployment.Target -NewName ('win-unpacked-failed-' + [Guid]::NewGuid().ToString('N'))
+    if ($Deployment.HadPrevious) { Rename-Item -LiteralPath $Deployment.Previous -NewName 'win-unpacked' }
 }
 
 function Install-HermesStableDesktopShortcut {

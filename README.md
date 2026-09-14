@@ -4,7 +4,7 @@ Unofficial Scoop package for Hermes Desktop and its matching stable [Hermes Agen
 
 It makes Hermes updates visible in Scoop/UniGetUI without allowing the package to follow upstream `main`.
 
-GitHub Actions builds the complete Desktop application from the same upstream commit as Agent. It tests the archive through Scoop, launches the packaged renderer, and checks Agent upgrade and rollback before publishing a GitHub release and updating the bucket. Until the first Desktop release passes these checks, the committed manifest remains the previously tested Agent package.
+GitHub Actions builds the complete Desktop application from the same upstream commit as Agent. It tests the archive through Scoop, launches the packaged renderer, and checks Agent upgrade and rollback before publishing a GitHub release and updating the bucket.
 
 Launch **Hermes Stable** from the Start menu after installation. Close Desktop before running `scoop update hermes-agent-stable`. The built-in manual updater remains unchanged; use Scoop or UniGetUI to preserve the tested Desktop/Agent pair.
 

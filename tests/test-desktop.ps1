@@ -24,6 +24,37 @@ try {
     $failed = $false
     try { $null = Set-HermesStableDesktop -Stage (Join-Path $testRoot 'missing') -Paths $paths } catch { $failed = $true }
     if (-not $failed -or (Get-Content (Join-Path $target 'Hermes.exe') -Raw).Trim() -ne 'old-desktop') { throw 'Interrupted Desktop deployment lost the old executable.' }
+    # A cross-volume move can create part of its destination before failing.
+    # The old executable must still be at the canonical path in that case.
+    $partialStage = New-HermesStableDesktopStage -Source $source -Commit $commit -Paths $paths
+    function Move-Item {
+        param([string]$LiteralPath, [string]$Destination)
+        if ($LiteralPath -eq $partialStage) {
+            New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+            Set-Content (Join-Path $Destination 'partial.tmp') 'interrupted copy'
+            throw 'Injected cross-volume move failure.'
+        }
+        Microsoft.PowerShell.Management\Move-Item -LiteralPath $LiteralPath -Destination $Destination
+    }
+    try {
+        $failed = $false
+        try { $null = Set-HermesStableDesktop -Stage $partialStage -Paths $paths } catch { $failed = $true }
+        if (-not $failed -or -not (Test-Path (Join-Path $target 'Hermes.exe'))) { throw 'Partial move displaced the working Desktop.' }
+        if ((Get-Content (Join-Path $target 'Hermes.exe') -Raw).Trim() -ne 'old-desktop') { throw 'Partial move corrupted the working Desktop.' }
+    } finally { Remove-Item Function:\Move-Item }
+    $renameStage = New-HermesStableDesktopStage -Source $source -Commit $commit -Paths $paths
+    function Rename-Item {
+        param([string]$LiteralPath, [string]$NewName)
+        if ((Split-Path $LiteralPath -Leaf) -like 'stable-next-*' -and $NewName -eq 'win-unpacked') {
+            throw 'Injected activation failure.'
+        }
+        Microsoft.PowerShell.Management\Rename-Item -LiteralPath $LiteralPath -NewName $NewName
+    }
+    try {
+        $failed = $false
+        try { $null = Set-HermesStableDesktop -Stage $renameStage -Paths $paths } catch { $failed = $true }
+        if (-not $failed -or (Get-Content (Join-Path $target 'Hermes.exe') -Raw).Trim() -ne 'old-desktop') { throw 'Failed activation did not restore the working Desktop.' }
+    } finally { Remove-Item Function:\Rename-Item }
     Write-Host 'Desktop provenance and rollback tests passed.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($testRoot)

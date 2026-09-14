@@ -850,13 +850,17 @@
       "    New-Item -ItemType Directory -Force -Path $parent | Out-Null",
       "    $target = Join-Path $parent 'win-unpacked'",
       "    $previous = Join-Path $parent ('stable-previous-' + [Guid]::NewGuid().ToString('N'))",
-      "    # Both move targets are fixed children of the managed release directory.",
+      "    $candidate = Join-Path $parent ('stable-next-' + [Guid]::NewGuid().ToString('N'))",
+      "    # Finish any cross-volume copy before touching the working Desktop.",
+      "    # A partial transfer stays in a separate diagnostic directory.",
+      "    Move-Item -LiteralPath $Stage -Destination $candidate",
       "    $hadPrevious = Test-Path -LiteralPath $target",
-      "    if ($hadPrevious) { Move-Item -LiteralPath $target -Destination $previous }",
+      "    if ($hadPrevious) { Rename-Item -LiteralPath $target -NewName (Split-Path $previous -Leaf) }",
       "    try {",
-      "        Move-Item -LiteralPath $Stage -Destination $target",
+      "        Rename-Item -LiteralPath $candidate -NewName 'win-unpacked'",
       "    } catch {",
-      "        if ($hadPrevious) { Move-Item -LiteralPath $previous -Destination $target }",
+      "        # Rename fails instead of silently nesting the old tree in a new target.",
+      "        if ($hadPrevious) { Rename-Item -LiteralPath $previous -NewName 'win-unpacked' }",
       "        throw",
       "    }",
       "    return @{ Target = $target; Previous = $previous; HadPrevious = $hadPrevious }",
@@ -866,8 +870,8 @@
       "    param($Deployment)",
       "    if (-not $Deployment) { return }",
       "    # Retain failed payload for diagnosis instead of deleting it.",
-      "    Move-Item -LiteralPath $Deployment.Target -Destination ($Deployment.Target + '-failed-' + [Guid]::NewGuid().ToString('N'))",
-      "    if ($Deployment.HadPrevious) { Move-Item -LiteralPath $Deployment.Previous -Destination $Deployment.Target }",
+      "    Rename-Item -LiteralPath $Deployment.Target -NewName ('win-unpacked-failed-' + [Guid]::NewGuid().ToString('N'))",
+      "    if ($Deployment.HadPrevious) { Rename-Item -LiteralPath $Deployment.Previous -NewName 'win-unpacked' }",
       "}",
       "",
       "function Install-HermesStableDesktopShortcut {",
@@ -907,13 +911,13 @@
   ],
   "architecture": {
     "64bit": {
-      "url": [
-        "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
-        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r1/hermes-desktop-windows-x64.zip"
-      ],
       "hash": [
         "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
         "09b9fe5f7ddce6341516db9fdec027de4867ac601f792783091b358b4907e4ef"
+      ],
+      "url": [
+        "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
+        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r1/hermes-desktop-windows-x64.zip"
       ]
     }
   }

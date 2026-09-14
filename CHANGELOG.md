@@ -2,6 +2,8 @@
 
 ## Desktop packaging
 
+- Revision 2 keeps the working Desktop in place until a cross-volume payload transfer completes. Regression coverage injects a partial transfer failure.
+
 - Build a Windows x64 Desktop ZIP from the exact stable Agent commit and publish it after Scoop installation, packaged UI launch, and lifecycle checks.
 - Add the Hermes Stable Start menu launcher and restore the previous Desktop payload if installation fails.
 - Preserve the upstream manual updater; Scoop and UniGetUI remain the supported update path for the paired package.
