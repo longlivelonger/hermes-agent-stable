@@ -1,5 +1,5 @@
 {
-  "version": "2026.9.11.1",
+  "version": "2026.9.11.2",
   "description": "Hermes Desktop and pinned stable Agent for Windows x64 (unofficial Scoop package)",
   "homepage": "https://github.com/NousResearch/hermes-agent",
   "license": "MIT",
@@ -894,7 +894,7 @@
       "    $shortcut.WorkingDirectory = $Paths.HermesHome",
       "    $shortcut.Save()",
       "}",
-      "Invoke-HermesStableInstall -TargetTag 'v2026.9.11' -TargetCommit '939e45c91d751fadd94dcd1b873ac3cb44846213' -PackageVersion '2026.9.11.1' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
+      "Invoke-HermesStableInstall -TargetTag 'v2026.9.11' -TargetCommit '939e45c91d751fadd94dcd1b873ac3cb44846213' -PackageVersion '2026.9.11.2' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
     ]
   },
   "notes": [
@@ -913,11 +913,11 @@
     "64bit": {
       "url": [
         "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
-        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r1/hermes-desktop-windows-x64.zip"
+        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r2/hermes-desktop-windows-x64.zip"
       ],
       "hash": [
         "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
-        "09b9fe5f7ddce6341516db9fdec027de4867ac601f792783091b358b4907e4ef"
+        "099b6da6929a10c85dbd6550f07fb171bcaadf7c8da79f82640b56e8900b32be"
       ]
     }
   }
