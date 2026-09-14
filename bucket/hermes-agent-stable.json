@@ -1,5 +1,5 @@
 {
-  "version": "2026.9.11.3",
+  "version": "2026.9.14.3",
   "description": "Hermes Desktop and pinned stable Agent for Windows x64 (unofficial Scoop package)",
   "homepage": "https://github.com/NousResearch/hermes-agent",
   "license": "MIT",
@@ -906,12 +906,12 @@
       "    $shortcut.WorkingDirectory = $Paths.HermesHome",
       "    $shortcut.Save()",
       "}",
-      "Invoke-HermesStableInstall -TargetTag 'v2026.9.11' -TargetCommit '939e45c91d751fadd94dcd1b873ac3cb44846213' -PackageVersion '2026.9.11.3' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
+      "Invoke-HermesStableInstall -TargetTag 'v2026.9.14' -TargetCommit '345cd2b057a452236de401d3534b8502a7465e8d' -PackageVersion '2026.9.14.3' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
     ]
   },
   "notes": [
-    "Release tag: v2026.9.11",
-    "Pinned upstream commit: 939e45c91d751fadd94dcd1b873ac3cb44846213",
+    "Release tag: v2026.9.14",
+    "Pinned upstream commit: 345cd2b057a452236de401d3534b8502a7465e8d",
     "Tracks only official non-draft, non-prerelease Hermes Agent GitHub releases.",
     "Existing installs receive a full pre-update backup in %USERPROFILE%\\Hermes Backups.",
     "Interactive config migrations are intentionally NOT run during package updates; use: hermes config migrate",
@@ -924,12 +924,12 @@
   "architecture": {
     "64bit": {
       "url": [
-        "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
-        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r3/hermes-desktop-windows-x64.zip"
+        "https://raw.githubusercontent.com/NousResearch/hermes-agent/345cd2b057a452236de401d3534b8502a7465e8d/scripts/install.ps1",
+        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.14-r3/hermes-desktop-windows-x64.zip"
       ],
       "hash": [
         "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
-        "0b95d7a97a79d59b153219595718d765e37b63a005fce151140735e60e396260"
+        "4ca3535e7799488f79988e516d6ad48a3f669b55abde4c7865d78677a3558d23"
       ]
     }
   }
