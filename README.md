@@ -161,16 +161,15 @@ Before committing a changed manifest it tests:
 
 `actions/checkout` is pinned to a full commit SHA. The workflow logs the exact Scoop revision used by CI.
 
-## First upload to GitHub
+## Publishing releases
 
-The ZIP intentionally does not contain a generated `bucket/hermes-agent-stable.json`. The first workflow run resolves the then-current stable release, exact commit and installer hash, tests them, and commits the manifest.
+Run the `Build and release Hermes Desktop stable` workflow to build and publish a release. It resolves the current stable release, verifies the exact commit and both download hashes, tests the package, and commits `bucket/hermes-agent-stable.json`.
 
 The workflow needs permission to push. If GitHub rejects the bot push, enable **Settings → Actions → General → Workflow permissions → Read and write permissions**, subject to organization policy.
 
-Manual generation on Windows/PowerShell:
+Local code checks on Windows/PowerShell:
 
 ```powershell
-./tools/update-manifest.ps1
 ./tests/test-repository.ps1
 ```
 

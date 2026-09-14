@@ -6,7 +6,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-if (-not $OutputPath) { $OutputPath = Join-Path $repoRoot 'bucket\hermes-agent-stable.json' }
+# Legacy Agent-only fixture generator. It must never replace the Desktop package.
+if (-not $OutputPath) { throw 'Use the Desktop release workflow to publish. Agent-only fixtures require an explicit -OutputPath outside bucket/hermes-agent-stable.json.' }
+$destination = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
+if ($destination -eq (Join-Path $repoRoot 'bucket\hermes-agent-stable.json')) { throw 'The Agent-only generator cannot overwrite the published Desktop manifest.' }
 $lifecycle = Join-Path $repoRoot 'scripts\hermes-lifecycle.ps1'
 $compatibility = Join-Path $repoRoot 'scripts\hermes-install-compat.ps1'
 $builder = Join-Path $PSScriptRoot 'build-manifest.ps1'

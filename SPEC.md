@@ -141,7 +141,7 @@ Consequences:
 
 The checked-in manifest is generated, not hand-maintained.
 
-`tools/update-manifest.ps1`:
+`tools/prepare-desktop-release.ps1` builds or reuses the Desktop archive, verifies it, and invokes the manifest builder with both downloads. `tools/update-manifest.ps1` remains an Agent-only fixture helper and must not overwrite the published Desktop manifest. Both release paths share these upstream selection steps:
 
 1. Uses GitHub `releases/latest` for the normal latest-stable path.
 2. Resolves the release tag through GitHub's git-ref API, including annotated tags, to an exact commit.
