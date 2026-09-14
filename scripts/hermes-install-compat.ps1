@@ -187,7 +187,7 @@ $proc.WaitForExit()
 
 function Assert-HermesStableInstallerPolicy {
     param([string]$Installer)
-    $null = ConvertTo-HermesStableInstaller -Source (Get-Content -LiteralPath $Installer -Raw)
+    $null = ConvertTo-HermesStableInstaller -Source (Get-Content -LiteralPath $Installer -Raw -Encoding UTF8)
 }
 
 function Install-HermesStableCommit {
@@ -206,7 +206,7 @@ function Install-HermesStableCommit {
         $powershellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
     }
 
-    $policySource = ConvertTo-HermesStableInstaller -Source (Get-Content -LiteralPath $Installer -Raw)
+    $policySource = ConvertTo-HermesStableInstaller -Source (Get-Content -LiteralPath $Installer -Raw -Encoding UTF8)
     $policyInstaller = Join-Path ([IO.Path]::GetTempPath()) ('hermes-stable-installer-' + [Guid]::NewGuid().ToString('N') + '.ps1')
     Set-Content -LiteralPath $policyInstaller -Value $policySource -Encoding UTF8
     $arguments = @(

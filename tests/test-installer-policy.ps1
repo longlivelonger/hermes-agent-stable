@@ -1,7 +1,7 @@
 param([Parameter(Mandatory = $true)][string]$InstallerPath)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\scripts\hermes-install-compat.ps1')
-$original = Get-Content -LiteralPath $InstallerPath -Raw
+$original = Get-Content -LiteralPath $InstallerPath -Raw -Encoding UTF8
 $source = ConvertTo-HermesStableInstaller -Source $original
 function Get-PolicyFunction([string]$Name, [string]$Text = $source) {
     $tokens = $null; $errors = $null
@@ -94,7 +94,7 @@ try {
         Assert-Throws { Install-NodeDeps } 'Stable Node dependencies'
     }
     Assert-Throws { ConvertTo-HermesStableInstaller -Source ($original.Replace('function Install-CuaDriver {', 'function Unknown-CuaDriver {')) } 'Unsupported upstream installer'
-    if ((Get-Content -LiteralPath $InstallerPath -Raw) -cne $original) { throw 'Pinned installer was modified.' }
+    if ((Get-Content -LiteralPath $InstallerPath -Raw -Encoding UTF8) -cne $original) { throw 'Pinned installer was modified.' }
     Write-Host 'Pinned installer policy tests passed.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($work)
