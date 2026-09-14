@@ -911,13 +911,13 @@
   ],
   "architecture": {
     "64bit": {
-      "hash": [
-        "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
-        "09b9fe5f7ddce6341516db9fdec027de4867ac601f792783091b358b4907e4ef"
-      ],
       "url": [
         "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
         "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r1/hermes-desktop-windows-x64.zip"
+      ],
+      "hash": [
+        "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
+        "09b9fe5f7ddce6341516db9fdec027de4867ac601f792783091b358b4907e4ef"
       ]
     }
   }

@@ -54,7 +54,7 @@ if ($DesktopUrl) {
     $manifest.description = 'Hermes Desktop and pinned stable Agent for Windows x64 (unofficial Scoop package)'
     $manifest.Remove('url')
     $manifest.Remove('hash')
-    $manifest.architecture = @{ '64bit' = @{
+    $manifest.architecture = [ordered]@{ '64bit' = [ordered]@{
         url = @($InstallerUrl, $DesktopUrl)
         hash = @($InstallerSha256.ToLowerInvariant(), $DesktopSha256.ToLowerInvariant())
     } }

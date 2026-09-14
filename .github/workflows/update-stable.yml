@@ -142,6 +142,14 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         shell: pwsh
         run: |
+          git fetch origin master
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check the current branch before publication.' }
+          $remoteHead = git rev-parse origin/master
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the current branch.' }
+          if ($remoteHead.Trim() -ne $env:GITHUB_SHA) {
+            Write-Host 'A newer commit superseded this run. Leave its manifest to the next workflow; the verified release is already available.'
+            exit 0
+          }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add bucket/hermes-agent-stable.json
