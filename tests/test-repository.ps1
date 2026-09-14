@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'test-desktop.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 $lifecyclePath = Join-Path $root 'scripts\hermes-lifecycle.ps1'
 $compatibilityPath = Join-Path $root 'scripts\hermes-install-compat.ps1'
@@ -134,13 +135,25 @@ if (-not (Test-Path -LiteralPath $manifestPath)) {
 
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
 if ($manifest.version -notmatch '^\d') { throw 'Manifest version must begin with a digit.' }
-if ($manifest.url -notmatch '^https://raw\.githubusercontent\.com/NousResearch/hermes-agent/[0-9a-f]{40,64}/scripts/install\.ps1$') { throw 'Manifest installer URL must be pinned to an exact upstream commit.' }
-if ($manifest.hash -notmatch '^[0-9a-f]{64}$') { throw 'Manifest hash must be SHA-256.' }
+$urls = @($manifest.url)
+$hashes = @($manifest.hash)
+if ($manifest.architecture) {
+    $urls = @($manifest.architecture.'64bit'.url)
+    $hashes = @($manifest.architecture.'64bit'.hash)
+}
+if ($urls[0] -notmatch '^https://raw\.githubusercontent\.com/NousResearch/hermes-agent/[0-9a-f]{40,64}/scripts/install\.ps1$') { throw 'Manifest installer URL must be pinned to an exact upstream commit.' }
+if ($urls.Count -ne $hashes.Count) { throw 'Every download needs its own checksum.' }
+foreach ($hash in $hashes) { if ($hash -notmatch '^[0-9a-f]{64}$') { throw 'Manifest hash must be SHA-256.' } }
 if (-not $manifest.installer.script) { throw 'Manifest installer.script is missing.' }
 if ($manifest.uninstaller -or $manifest.pre_uninstall -or $manifest.post_uninstall) { throw 'Scoop uninstaller hooks are forbidden by SPEC.md because Scoop runs them during upgrades.' }
 
 $embedded = @($manifest.installer.script)
 $expectedEmbedded = @($lifecycleLines) + @('') + @($compatibilityLines)
+if ($manifest.architecture) {
+    $expectedEmbedded += @('') + @(Get-Content -LiteralPath (Join-Path $root 'scripts\hermes-desktop.ps1'))
+    if ($urls.Count -ne 2 -or $urls[1] -notmatch '^https://github.com/longlivelonger/hermes-agent-stable/releases/download/[^/]+/hermes-desktop-windows-x64.zip$') { throw 'Desktop must come from an immutable package release.' }
+    if ([string]$embedded[-1] -notmatch '-DesktopSourcePath') { throw 'Desktop payload is not installed.' }
+}
 if ($embedded.Count -ne ($expectedEmbedded.Count + 1)) { throw 'Embedded lifecycle/compatibility line count differs from source scripts.' }
 for ($i = 0; $i -lt $expectedEmbedded.Count; $i++) {
     if ([string]$embedded[$i] -cne [string]$expectedEmbedded[$i]) { throw "Embedded installer script differs from source at line $($i + 1)." }

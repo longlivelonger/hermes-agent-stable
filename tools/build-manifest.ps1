@@ -6,6 +6,8 @@ param(
     [Parameter(Mandatory = $true)][string]$InstallerSha256,
     [Parameter(Mandatory = $true)][string]$LifecycleScript,
     [string]$CompatibilityScript = '',
+    [string]$DesktopUrl = '',
+    [string]$DesktopSha256 = '',
     [Parameter(Mandatory = $true)][string]$OutputPath
 )
 
@@ -19,6 +21,12 @@ if ($CompatibilityScript) {
     $lines += @(Get-Content -LiteralPath $CompatibilityScript)
 }
 $invokeLine = "Invoke-HermesStableInstall -TargetTag '$Tag' -TargetCommit '$commit' -PackageVersion '$Version' -UpstreamInstallerPath (Join-Path `$dir 'install.ps1')"
+if ($DesktopUrl) {
+    if ($DesktopSha256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'Desktop archive requires a SHA-256 checksum.' }
+    $lines += ''
+    $lines += @(Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\scripts\hermes-desktop.ps1'))
+    $invokeLine += " -DesktopSourcePath (Join-Path `$dir 'desktop')"
+}
 $scriptLines = @($lines) + @($invokeLine)
 
 $manifest = [ordered]@{
@@ -39,6 +47,21 @@ $manifest = [ordered]@{
         'Interactive config migrations are intentionally NOT run during package updates; use: hermes config migrate',
         'This wrapper intentionally has no Scoop uninstaller hook. `scoop uninstall hermes-agent-stable` unregisters the wrapper but leaves Hermes installed.',
         'To remove Hermes while preserving user data, run: hermes uninstall --yes'
+    )
+}
+
+if ($DesktopUrl) {
+    $manifest.description = 'Hermes Desktop and pinned stable Agent for Windows x64 (unofficial Scoop package)'
+    $manifest.Remove('url')
+    $manifest.Remove('hash')
+    $manifest.architecture = @{ '64bit' = @{
+        url = @($InstallerUrl, $DesktopUrl)
+        hash = @($InstallerSha256.ToLowerInvariant(), $DesktopSha256.ToLowerInvariant())
+    } }
+    $manifest.notes += @(
+        'Launch Hermes Stable from the Start menu. Close Desktop before updating.',
+        'Update the Desktop/Agent pair with Scoop or UniGetUI. Built-in manual updates are unchanged; avoid them to keep the stable pair.',
+        'Electron user data stays in its upstream location and is not included in the Agent backup.'
     )
 }
 

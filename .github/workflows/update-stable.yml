@@ -1,4 +1,4 @@
-name: Update Hermes stable manifest
+name: Build and release Hermes Desktop stable
 
 on:
   schedule:
@@ -9,6 +9,8 @@ on:
     paths:
       - 'scripts/hermes-lifecycle.ps1'
       - 'scripts/hermes-install-compat.ps1'
+      - 'scripts/hermes-desktop.ps1'
+      - 'packaging-revision.txt'
       - 'tools/**'
       - 'tests/**'
       - '.github/workflows/update-stable.yml'
@@ -18,11 +20,12 @@ permissions:
 
 concurrency:
   group: hermes-stable-manifest
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: windows-latest
+    timeout-minutes: 90
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
@@ -31,10 +34,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate manifest from latest stable release
+      - name: Set up Node for Desktop build
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.14.0'
+
+      - name: Build or reuse immutable Desktop release
         id: manifest
         shell: pwsh
-        run: ./tools/update-manifest.ps1
+        run: ./tools/prepare-desktop-release.ps1
 
       - name: Validate repository contracts under Windows PowerShell 5.1
         shell: powershell
@@ -73,8 +81,21 @@ jobs:
         shell: pwsh
         run: |
           $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install'
-          $manifestPath = (Resolve-Path '.\bucket\hermes-agent-stable.json').Path
-          scoop install $manifestPath
+          # Test the exact archive before publishing it. Only its transport URL changes.
+          $manifest = Get-Content '.\bucket\hermes-agent-stable.json' -Raw | ConvertFrom-Json
+          $manifest.architecture.'64bit'.url[1] = 'http://127.0.0.1:18765/hermes-desktop-windows-x64.zip'
+          $manifestPath = Join-Path $env:RUNNER_TEMP 'hermes-agent-stable.json'
+          $manifest | ConvertTo-Json -Depth 12 | Set-Content $manifestPath -Encoding utf8
+          $server = Start-Process python -ArgumentList @('-m', 'http.server', '18765', '--bind', '127.0.0.1', '--directory', ('"' + '${{ steps.manifest.outputs.directory }}' + '"')) -WindowStyle Hidden -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              try { $null = Invoke-WebRequest 'http://127.0.0.1:18765/SHA256SUMS.txt'; $ready = $true; break } catch { Start-Sleep -Seconds 1 }
+            }
+            if (-not $ready) { throw 'Local artifact server did not start.' }
+            scoop install $manifestPath
+            if ($LASTEXITCODE -ne 0) { throw "Scoop install failed with exit code $LASTEXITCODE." }
+          } finally { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
           if ($LASTEXITCODE -ne 0) {
             throw "Scoop install failed with exit code $LASTEXITCODE."
           }
@@ -90,10 +111,32 @@ jobs:
           $head = git -C (Join-Path $env:HERMES_HOME 'hermes-agent') rev-parse HEAD
           if ($head.Trim().ToLowerInvariant() -ne '${{ steps.manifest.outputs.commit }}') { throw "Clean install commit mismatch: $head" }
 
+      - name: Launch installed Desktop and verify its renderer
+        if: steps.changes.outputs.changed == 'true' || github.event_name != 'schedule'
+        shell: pwsh
+        run: |
+          $deps = Join-Path $env:RUNNER_TEMP 'hermes-smoke-deps'
+          New-Item -ItemType Directory -Force $deps | Out-Null
+          npm install --prefix $deps playwright-core@1.62.1 --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Smoke test dependency install failed.' }
+          $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install'
+          node ./tests/smoke-desktop.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged Desktop smoke test failed.' }
+
       - name: Integration-test real upgrade and rollback lifecycle
         if: steps.changes.outputs.changed == 'true' || github.event_name != 'schedule'
         shell: pwsh
-        run: ./tests/integration-lifecycle.ps1 -TargetTag '${{ steps.manifest.outputs.tag }}' -TargetCommit '${{ steps.manifest.outputs.commit }}'
+        run: |
+          $desktop = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install\hermes-agent\apps\desktop\release\win-unpacked'
+          ./tests/integration-lifecycle.ps1 -TargetTag '${{ steps.manifest.outputs.tag }}' -TargetCommit '${{ steps.manifest.outputs.commit }}' -DesktopSourcePath $desktop
+
+      - name: Publish verified Desktop release
+        if: steps.manifest.outputs.published == 'false'
+        shell: pwsh
+        run: |
+          $dir = '${{ steps.manifest.outputs.directory }}'
+          gh release create '${{ steps.manifest.outputs.releaseTag }}' (Join-Path $dir 'hermes-desktop-windows-x64.zip') (Join-Path $dir 'SHA256SUMS.txt') (Join-Path $dir 'release-plan.json') (Join-Path $dir 'desktop-smoke.png') (Join-Path $dir 'desktop-smoke.txt') --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'Hermes Desktop stable ${{ steps.manifest.outputs.version }}' --notes-file (Join-Path $dir 'release-notes.md')
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed; manifest will not be committed.' }
 
       - name: Commit published manifest
         if: steps.changes.outputs.changed == 'true'

@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$TargetTag,
-    [Parameter(Mandatory = $true)][string]$TargetCommit
+    [Parameter(Mandatory = $true)][string]$TargetCommit,
+    [string]$DesktopSourcePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,6 +9,7 @@ $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $root 'tools\hermes-release.ps1')
 . (Join-Path $root 'scripts\hermes-lifecycle.ps1')
 . (Join-Path $root 'scripts\hermes-install-compat.ps1')
+. (Join-Path $root 'scripts\hermes-desktop.ps1')
 
 if (-not $env:RUNNER_TEMP) { throw 'integration-lifecycle.ps1 is intended for a disposable Windows CI runner.' }
 $work = Join-Path $env:RUNNER_TEMP ('hermes-stable-integration-' + [Guid]::NewGuid().ToString('N'))
@@ -34,7 +36,10 @@ try {
     Set-Content -LiteralPath $marker -Value 'preserve-me' -Encoding UTF8
 
     Write-Host "=== Upgrade to target stable: $TargetTag @ $TargetCommit ==="
-    Invoke-HermesStableInstall -TargetTag $TargetTag -TargetCommit $TargetCommit -PackageVersion ($TargetTag -replace '^v', '') -UpstreamInstallerPath $targetInstaller.Path
+    Invoke-HermesStableInstall -TargetTag $TargetTag -TargetCommit $TargetCommit -PackageVersion ($TargetTag -replace '^v', '') -UpstreamInstallerPath $targetInstaller.Path -DesktopSourcePath $DesktopSourcePath
+    $desktopHash = $null
+    $desktopExe = Join-Path $hermesHome 'hermes-agent\apps\desktop\release\win-unpacked\Hermes.exe'
+    if ($DesktopSourcePath) { $desktopHash = (Get-FileHash -LiteralPath $desktopExe).Hash }
 
     $paths = Get-HermesStablePaths
     $checkout = Get-HermesStableCheckoutInfo -Paths $paths
@@ -87,6 +92,7 @@ exit 73
 
     $checkoutAfterRollback = Get-HermesStableCheckoutInfo -Paths $paths
     if ($checkoutAfterRollback.Commit -ne $TargetCommit.ToLowerInvariant()) { throw 'Rollback did not restore the pre-failure commit.' }
+    if ($desktopHash -and (Get-FileHash -LiteralPath $desktopExe).Hash -ne $desktopHash) { throw 'Agent rollback damaged the installed Desktop.' }
     if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw 'User marker is missing after rollback/restore.' }
     if ((Get-Content -Raw -LiteralPath $marker).Trim() -cne 'preserve-me') { throw 'Rollback did not restore the original user marker contents.' }
 

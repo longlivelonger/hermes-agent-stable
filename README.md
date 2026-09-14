@@ -1,8 +1,14 @@
 # hermes-agent-stable
 
-Unofficial community Scoop package for **stable releases** of [Nous Research Hermes Agent](https://github.com/NousResearch/hermes-agent) on native Windows.
+Unofficial Scoop package for Hermes Desktop and its matching stable [Hermes Agent](https://github.com/NousResearch/hermes-agent) on Windows x64.
 
 It makes Hermes updates visible in Scoop/UniGetUI without allowing the package to follow upstream `main`.
+
+GitHub Actions builds the complete Desktop application from the same upstream commit as Agent. It tests the archive through Scoop, launches the packaged renderer, and checks Agent upgrade and rollback before publishing a GitHub release and updating the bucket. Until the first Desktop release passes these checks, the committed manifest remains the previously tested Agent package.
+
+Launch **Hermes Stable** from the Start menu after installation. Close Desktop before running `scoop update hermes-agent-stable`. The built-in manual updater remains unchanged; use Scoop or UniGetUI to preserve the tested Desktop/Agent pair.
+
+Desktop is prebuilt and unsigned. Agent still needs an internet connection to install Python and dependencies. Electron preferences remain in the upstream user-data directory and are outside the Agent backup. A failed installation restores the previous Desktop payload; previous payload directories are retained under `hermes-agent/apps/desktop/release/stable-previous-*` for recovery.
 
 ## Update model
 
@@ -15,9 +21,11 @@ NousResearch/hermes-agent GitHub Releases
       GitHub Actions in this bucket
                  |
                  | release tag -> exact commit SHA
-                 | install.ps1 downloaded from exact commit
+                 | Desktop ZIP built from exact commit
+                 | install.ps1 downloaded from the same commit
                  | SHA-256 pinned in Scoop manifest
-                 | clean install + real update/rollback tests
+                 | Scoop install + Desktop launch + update/rollback tests
+                 | publish verified Desktop GitHub release
                  v
           hermes-agent-stable manifest
                  |
@@ -47,7 +55,7 @@ It does **not** install by `main` or resolve a tag again at user-install time. T
 After publishing the repository on GitHub:
 
 ```powershell
-scoop bucket add hermes https://github.com/YOUR-GITHUB-USER/scoop-hermes-agent
+scoop bucket add hermes https://github.com/longlivelonger/hermes-agent-stable
 scoop install hermes/hermes-agent-stable
 ```
 

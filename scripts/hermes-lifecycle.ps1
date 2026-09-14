@@ -524,7 +524,8 @@ function Invoke-HermesStableInstall {
         [Parameter(Mandatory = $true)][string]$TargetTag,
         [Parameter(Mandatory = $true)][string]$TargetCommit,
         [Parameter(Mandatory = $true)][string]$PackageVersion,
-        [Parameter(Mandatory = $true)][string]$UpstreamInstallerPath
+        [Parameter(Mandatory = $true)][string]$UpstreamInstallerPath,
+        [string]$DesktopSourcePath = ''
     )
 
     $ErrorActionPreference = 'Stop'
@@ -536,6 +537,11 @@ function Invoke-HermesStableInstall {
     $paths = Get-HermesStablePaths
     $script:HermesStableHome = $paths.HermesHome
     New-Item -ItemType Directory -Force -Path $paths.StateDir | Out-Null
+    $desktopStage = $null
+    $desktopDeployment = $null
+    if ($DesktopSourcePath) {
+        $desktopStage = New-HermesStableDesktopStage -Source $DesktopSourcePath -Commit $TargetCommit -Paths $paths
+    }
     $existingHermes = Get-HermesStableCommand -Paths $paths
     $checkout = Get-HermesStableCheckoutInfo -Paths $paths
 
@@ -603,8 +609,16 @@ function Invoke-HermesStableInstall {
         $newHermes = Get-HermesStableCommand -Paths $paths
         if (-not $newHermes) { throw 'Hermes CLI was not found after installation.' }
         $versionText = Assert-HermesStableTarget -Paths $paths -HermesCommand $newHermes -TargetCommit $TargetCommit
+        if ($desktopStage) {
+            $desktopDeployment = Set-HermesStableDesktop -Stage $desktopStage -Paths $paths
+            Install-HermesStableDesktopShortcut -Paths $paths
+        }
     } catch {
         $failure = $_.Exception.Message
+        if ($desktopDeployment) {
+            try { Undo-HermesStableDesktop -Deployment $desktopDeployment }
+            catch { Write-HermesStableWarn "Desktop rollback failed: $($_.Exception.Message)" }
+        }
         if ($existingHermes) {
             Invoke-HermesStableRollback -Paths $paths -RollbackInstaller $rollbackInstaller -OldCommit $oldCommit -OldTag $oldTag -BackupPath $backupPath -RunningGateways $runningGateways -FailureMessage $failure
         } else {

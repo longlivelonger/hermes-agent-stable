@@ -93,3 +93,10 @@ hermes uninstall --yes
 ## CI dependency reproducibility
 
 GitHub Actions checkout is pinned to a full SHA. Scoop is installed using its official bootstrap in CI, and the exact Scoop git revision is printed to logs so any failure can be reproduced/debugged against the actual package-manager revision used.
+# Desktop releases
+
+The `Build and release Hermes Desktop stable` workflow builds on Windows x64 using the upstream npm lockfile. It overrides the upstream build-stamp environment with the selected Agent SHA, installs the resulting archive through Scoop from a temporary localhost server, launches its renderer with isolated user data, and runs the real Agent upgrade/rollback test with Desktop present. Only successful runs publish assets and commit the manifest.
+
+Run the workflow manually or push a packaging change. Stable upstream releases are checked every three hours. Increase `packaging-revision.txt` to release changed packaging for an existing upstream version. Existing published archives are reused, never overwritten. If publication succeeds but the manifest push fails, rerun the workflow to recover without rebuilding the archive.
+
+Use the release's SHA256SUMS.txt and release-plan.json to identify the payload and source commit. Desktop smoke output and screenshot are included in the release. The ZIP contains the whole application under `desktop/`; do not distribute Hermes.exe by itself.

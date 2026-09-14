@@ -180,3 +180,10 @@ Recommended package: `hermes-agent-stable`.
 Recommended GitHub topic: `scoop-bucket` for Scoop Directory discovery.
 
 README must clearly state this is an unofficial community package, not an official Nous Research distribution channel.
+# Desktop release extension
+
+The package installs a prebuilt Windows x64 Hermes Desktop alongside Agent at the same upstream commit. GitHub Actions must build, test, and publish the complete unpacked Desktop ZIP before committing a manifest that references it. Published assets must not be overwritten. `packaging-revision.txt` supplies a numeric packaging suffix to distinguish this package from the upstream version and must increase when republishing a changed package for the same upstream release.
+
+Scoop verifies both download hashes. Runtime validates the Desktop install stamp before changing Agent, deploys Desktop only after Agent verification, and restores the previous Desktop directory if the deployment transaction fails. An open Desktop blocks updates through the existing process preflight. The Start menu launcher pins the intended Hermes home and backend checkout. Upstream manual self-update is unchanged; the supported update path is Scoop or UniGetUI.
+
+Agent backup does not include Electron's separate user-data directory. Installation does not launch Desktop or migrate that data. Previous Desktop directories remain available for manual recovery. The package is not an offline Python distribution and is not code-signed.
