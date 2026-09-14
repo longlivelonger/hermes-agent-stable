@@ -14,7 +14,10 @@ const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-s
   env.HERMES_DESKTOP_HERMES_ROOT = path.join(env.HERMES_HOME, 'hermes-agent');
   env.HERMES_DESKTOP_SKIP_QUIT_CONFIRM = '1';
   const executablePath = path.join(env.HERMES_DESKTOP_HERMES_ROOT, 'apps/desktop/release/win-unpacked/Hermes.exe');
-  const expectedVersion = JSON.parse(fs.readFileSync(path.join(env.HERMES_DESKTOP_HERMES_ROOT, 'apps/desktop/package.json'), 'utf8')).version;
+  // Desktop's npm package has its own version; /api/health reports Agent's.
+  const agentModule = fs.readFileSync(path.join(env.HERMES_DESKTOP_HERMES_ROOT, 'hermes_cli/__init__.py'), 'utf8');
+  const expectedVersion = agentModule.match(/^__version__\s*=\s*["']([^"']+)["']/m)?.[1];
+  if (!expectedVersion) throw new Error('Cannot read the pinned Agent version for backend verification.');
   const outputDir = path.join(process.env.RUNNER_TEMP, 'hermes-release');
   const errors = [];
   let app;
