@@ -1,10 +1,8 @@
 {
-  "version": "2026.9.11",
-  "description": "Hermes Agent stable releases for native Windows (unofficial community Scoop package)",
+  "version": "2026.9.11.1",
+  "description": "Hermes Desktop and pinned stable Agent for Windows x64 (unofficial Scoop package)",
   "homepage": "https://github.com/NousResearch/hermes-agent",
   "license": "MIT",
-  "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
-  "hash": "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
   "installer": {
     "script": [
       "# Runtime lifecycle logic embedded into the generated Scoop manifest.",
@@ -831,7 +829,68 @@
       "",
       "    Repair-HermesStableTrackedCheckout -Commit $Commit -Paths $Paths -Label $Label",
       "}",
-      "Invoke-HermesStableInstall -TargetTag 'v2026.9.11' -TargetCommit '939e45c91d751fadd94dcd1b873ac3cb44846213' -PackageVersion '2026.9.11' -UpstreamInstallerPath (Join-Path $dir 'install.ps1')"
+      "",
+      "# The Scoop archive has already been SHA-256 verified and extracted.",
+      "function New-HermesStableDesktopStage {",
+      "    param([string]$Source, [string]$Commit, $Paths)",
+      "    $stamp = Get-Content -LiteralPath (Join-Path $Source 'resources\\install-stamp.json') -Raw | ConvertFrom-Json",
+      "    if ($stamp.commit -ne $Commit -or $stamp.dirty) { throw 'Desktop build does not match the clean pinned Agent commit.' }",
+      "    foreach ($file in @('Hermes.exe', 'resources\\app.asar', 'resources\\install-stamp.json')) {",
+      "        if (-not (Test-Path -LiteralPath (Join-Path $Source $file) -PathType Leaf)) { throw \"Desktop payload is missing $file.\" }",
+      "    }",
+      "    $stage = Join-Path $Paths.StateDir ('desktop-stage-' + [Guid]::NewGuid().ToString('N'))",
+      "    New-Item -ItemType Directory -Path $stage | Out-Null",
+      "    Copy-Item -Path (Join-Path $Source '*') -Destination $stage -Recurse -Force",
+      "    return $stage",
+      "}",
+      "",
+      "function Set-HermesStableDesktop {",
+      "    param([string]$Stage, $Paths)",
+      "    $parent = Join-Path $Paths.InstallDir 'apps\\desktop\\release'",
+      "    New-Item -ItemType Directory -Force -Path $parent | Out-Null",
+      "    $target = Join-Path $parent 'win-unpacked'",
+      "    $previous = Join-Path $parent ('stable-previous-' + [Guid]::NewGuid().ToString('N'))",
+      "    # Both move targets are fixed children of the managed release directory.",
+      "    $hadPrevious = Test-Path -LiteralPath $target",
+      "    if ($hadPrevious) { Move-Item -LiteralPath $target -Destination $previous }",
+      "    try {",
+      "        Move-Item -LiteralPath $Stage -Destination $target",
+      "    } catch {",
+      "        if ($hadPrevious) { Move-Item -LiteralPath $previous -Destination $target }",
+      "        throw",
+      "    }",
+      "    return @{ Target = $target; Previous = $previous; HadPrevious = $hadPrevious }",
+      "}",
+      "",
+      "function Undo-HermesStableDesktop {",
+      "    param($Deployment)",
+      "    if (-not $Deployment) { return }",
+      "    # Retain failed payload for diagnosis instead of deleting it.",
+      "    Move-Item -LiteralPath $Deployment.Target -Destination ($Deployment.Target + '-failed-' + [Guid]::NewGuid().ToString('N'))",
+      "    if ($Deployment.HadPrevious) { Move-Item -LiteralPath $Deployment.Previous -Destination $Deployment.Target }",
+      "}",
+      "",
+      "function Install-HermesStableDesktopShortcut {",
+      "    param($Paths)",
+      "    $exe = Join-Path $Paths.InstallDir 'apps\\desktop\\release\\win-unpacked\\Hermes.exe'",
+      "    $launcher = Join-Path $Paths.HermesHome 'bin\\hermes-desktop.ps1'",
+      "    $homeLiteral = $Paths.HermesHome.Replace(\"'\", \"''\")",
+      "    $rootLiteral = $Paths.InstallDir.Replace(\"'\", \"''\")",
+      "    $exeLiteral = $exe.Replace(\"'\", \"''\")",
+      "    @(",
+      "        \"`$env:HERMES_HOME = '$homeLiteral'\"",
+      "        \"`$env:HERMES_DESKTOP_HERMES_ROOT = '$rootLiteral'\"",
+      "        \"Start-Process -FilePath '$exeLiteral'\"",
+      "    ) | Set-Content -LiteralPath $launcher -Encoding UTF8",
+      "    $shell = New-Object -ComObject WScript.Shell",
+      "    $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Hermes Stable.lnk'))",
+      "    $shortcut.TargetPath = Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'",
+      "    $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + $launcher + '\"'",
+      "    $shortcut.IconLocation = $exe",
+      "    $shortcut.WorkingDirectory = $Paths.HermesHome",
+      "    $shortcut.Save()",
+      "}",
+      "Invoke-HermesStableInstall -TargetTag 'v2026.9.11' -TargetCommit '939e45c91d751fadd94dcd1b873ac3cb44846213' -PackageVersion '2026.9.11.1' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
     ]
   },
   "notes": [
@@ -841,6 +900,21 @@
     "Existing installs receive a full pre-update backup in %USERPROFILE%\\Hermes Backups.",
     "Interactive config migrations are intentionally NOT run during package updates; use: hermes config migrate",
     "This wrapper intentionally has no Scoop uninstaller hook. `scoop uninstall hermes-agent-stable` unregisters the wrapper but leaves Hermes installed.",
-    "To remove Hermes while preserving user data, run: hermes uninstall --yes"
-  ]
+    "To remove Hermes while preserving user data, run: hermes uninstall --yes",
+    "Launch Hermes Stable from the Start menu. Close Desktop before updating.",
+    "Update the Desktop/Agent pair with Scoop or UniGetUI. Built-in manual updates are unchanged; avoid them to keep the stable pair.",
+    "Electron user data stays in its upstream location and is not included in the Agent backup."
+  ],
+  "architecture": {
+    "64bit": {
+      "url": [
+        "https://raw.githubusercontent.com/NousResearch/hermes-agent/939e45c91d751fadd94dcd1b873ac3cb44846213/scripts/install.ps1",
+        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.11-r1/hermes-desktop-windows-x64.zip"
+      ],
+      "hash": [
+        "226c70a90ad47e8a4d34cb11aca4ecbeb649e2f9b67fbd009ea49791de2d56f5",
+        "09b9fe5f7ddce6341516db9fdec027de4867ac601f792783091b358b4907e4ef"
+      ]
+    }
+  }
 }
