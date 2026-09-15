@@ -1,7 +1,7 @@
 const { createRequire } = require('node:module');
 const path = require('node:path');
 const fs = require('node:fs');
-const { desktopReady, assertDesktopSnapshotReady } = require('./desktop-readiness.cjs');
+const { waitForDesktopReady, assertDesktopSnapshotReady } = require('./desktop-readiness.cjs');
 const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-smoke-deps', 'package.json'))('playwright-core');
 
 (async () => {
@@ -29,7 +29,7 @@ const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-s
     page = await app.firstWindow({ timeout: 120000 });
     page.on('pageerror', error => errors.push(error.message));
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForFunction(desktopReady, expectedVersion, { timeout: 180000, polling: 1000 });
+    await waitForDesktopReady(page, expectedVersion);
   } finally {
     try {
       if (page) {

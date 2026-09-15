@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { desktopReady, assertDesktopSnapshotReady } = require('./desktop-readiness.cjs');
+const { desktopReady, assertDesktopSnapshotReady, waitForDesktopReady } = require('./desktop-readiness.cjs');
 
 (async () => {
   const cases = [
@@ -51,5 +51,14 @@ const { desktopReady, assertDesktopSnapshotReady } = require('./desktop-readines
   }
   assert.throws(() => assertDesktopSnapshotReady(''), /snapshot is not ready/);
   assert.doesNotThrow(() => assertDesktopSnapshotReady('Connect a model provider'));
+  let polls = 0;
+  await waitForDesktopReady({ evaluate: async (predicate, version) => {
+    assert.equal(predicate, desktopReady);
+    assert.equal(version, '0.21.3');
+    return ++polls === 3;
+  } }, '0.21.3', { timeout: 1000, polling: 1 });
+  assert.equal(polls, 3, 'Poll the resolved boolean, not the truthy Promise.');
+  await assert.rejects(waitForDesktopReady({ evaluate: async () => false }, '0.21.3', { timeout: 30, polling: 1 }), /readiness timed out/);
+  await assert.rejects(waitForDesktopReady({ evaluate: () => new Promise(() => {}) }, '0.21.3', { timeout: 30 }), /readiness timed out/);
   console.log('Desktop readiness tests passed, including the published 86% loading state.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

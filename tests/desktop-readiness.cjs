@@ -23,4 +23,23 @@ function assertDesktopSnapshotReady(text) {
   }
 }
 
-module.exports = { desktopReady, assertDesktopSnapshotReady };
+async function waitForDesktopReady(page, expectedVersion, { timeout = 180000, polling = 1000 } = {}) {
+  const deadline = Date.now() + timeout;
+  const timedOut = () => new Error(`Desktop readiness timed out after ${timeout}ms.`);
+  while (Date.now() < deadline) {
+    let timer;
+    try {
+      // waitForFunction treats the async predicate's Promise as truthy, even
+      // when it resolves to false. evaluate awaits that resolved boolean.
+      const ready = await Promise.race([
+        page.evaluate(desktopReady, expectedVersion),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(timedOut()), Math.max(1, deadline - Date.now())); }),
+      ]);
+      if (ready === true) return;
+    } finally { clearTimeout(timer); }
+    await new Promise(resolve => setTimeout(resolve, Math.min(polling, Math.max(0, deadline - Date.now()))));
+  }
+  throw timedOut();
+}
+
+module.exports = { desktopReady, assertDesktopSnapshotReady, waitForDesktopReady };
