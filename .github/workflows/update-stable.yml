@@ -131,6 +131,8 @@ jobs:
           New-Item -ItemType Directory -Force $deps | Out-Null
           npm install --prefix $deps playwright-core@1.62.1 --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { throw 'Smoke test dependency install failed.' }
+          node ./tests/test-desktop-dom.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop DOM readiness regression failed.' }
           $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-stable-clean-install'
           node ./tests/smoke-desktop.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Packaged Desktop smoke test failed.' }
@@ -174,7 +176,7 @@ jobs:
         with:
           name: stable-verification-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/hermes-release/desktop-smoke.*
+            ${{ runner.temp }}/hermes-release/desktop-smoke*
             ${{ runner.temp }}/hermes-release/release-plan.json
             ${{ runner.temp }}/hermes-release/SHA256SUMS.txt
           if-no-files-found: ignore

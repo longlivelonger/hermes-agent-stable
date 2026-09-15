@@ -83,15 +83,73 @@ try {
         $script:pathRefreshed = $false; $script:driverCompatible = $false
         Assert-Throws { Install-CuaDriver } 'runtime verification failed'
     }
-    # The npm stage must propagate a failed installation, not just print it.
+    # Repair must work through the actual caller: PowerShell resolves warning
+    # functions dynamically from Install-NodeDeps into Install-CuaDriver.
+    & {
+        . (Get-PolicyFunction 'Install-NodeDeps')
+        . (Get-PolicyFunction 'Install-CuaDriver')
+        $HasNode = $true; $InstallDir = $work; $SkipComputerUse = $false
+        function Ensure-NodeExeOnPath { }; function Install-BrowserUseCli { }
+        function Write-Info { }; function Write-Success { }
+        function Write-Warn { param($Message) $script:repairWarning = $Message }
+        function Get-Command {
+            param($Name)
+            if ($Name -eq 'npm') { return [pscustomobject]@{ Source = 'fixture-npm.cmd' } }
+            if ($Name -eq 'cua-driver') { return [pscustomobject]@{ Source = 'fixture-driver.exe' } }
+            throw "Unexpected command lookup: $Name"
+        }
+        function Test-CuaDriverRuntimeContract { return $script:pathRefreshed -and $script:repairWorks }
+        function Start-Job { $script:repairStarted = $true; return 1 }
+        function Wait-Job { return $true }; function Receive-Job { }; function Remove-Job { }
+        function Update-ProcessPathForPackages { $script:pathRefreshed = $true }
+        foreach ($script:repairWorks in @($true, $false)) {
+            $script:pathRefreshed = $false; $script:repairStarted = $false; $script:repairWarning = ''
+            if ($script:repairWorks) { Install-NodeDeps }
+            else { Assert-Throws { Install-NodeDeps } 'runtime verification failed' }
+            if (-not $script:repairStarted -or -not $script:pathRefreshed) { throw 'Old driver repair did not run through the Node stage.' }
+            if ($script:repairWarning -notlike '*repairing it*') { throw 'Old driver repair warning was lost.' }
+        }
+    }
+    # Exercise real Node-stage subprocesses with tiny local command fixtures.
+    # Required components still fail even though warning logging is nonfatal.
     & {
         . (Get-PolicyFunction 'Install-NodeDeps')
         $HasNode = $true; $InstallDir = $work
-        function Ensure-NodeExeOnPath { }; function Write-Info { }
-        function Get-Command { [pscustomobject]@{ Source = (Join-Path $work 'fail-npm.cmd') } }
+        function Ensure-NodeExeOnPath { }; function Write-Info { }; function Write-Success { }; function Write-Warn { }
+        function Show-NpmCertHint { }; function Write-NpmDebugLogTail { }
+        function Install-BrowserUseCli { }; function Install-CuaDriver { $script:reachedCua = $true }
+        function Get-Command {
+            param($Name)
+            if ($Name -eq 'npm' -and $script:hasNpm) { return [pscustomobject]@{ Source = (Join-Path $work 'npm.cmd') } }
+            return $null
+        }
         Set-Content (Join-Path $work 'package.json') '{}' -Encoding ascii
-        Set-Content (Join-Path $work 'fail-npm.cmd') '@exit /b 73' -Encoding ascii
-        Assert-Throws { Install-NodeDeps } 'Stable Node dependencies'
+        $tui = New-Item -ItemType Directory (Join-Path $work 'ui-tui')
+        Set-Content (Join-Path $tui.FullName 'package.json') '{}' -Encoding ascii
+        Set-Content (Join-Path $work 'npm.cmd') "@if exist fail-npm exit /b 73`r`n@exit /b 0" -Encoding ascii
+        $script:hasNpm = $false
+        Assert-Throws { Install-NodeDeps } 'requires npm'
+        $script:hasNpm = $true
+        $savedTemp = $env:TEMP
+        try {
+            $env:TEMP = $work
+            Set-Content (Join-Path $work 'fail-npm') ''
+            Assert-Throws { Install-NodeDeps } 'Browser tools npm installation failed'
+            Remove-Item (Join-Path $work 'fail-npm')
+            Assert-Throws { Install-NodeDeps } 'npx not found'
+            foreach ($exit in @(73, 124)) {
+                Set-Content (Join-Path $work 'npx.cmd') "@exit /b $exit" -Encoding ascii
+                $message = if ($exit -eq 124) { 'Chromium install timed out' } else { 'Chromium install failed -- exit code 73' }
+                Assert-Throws { Install-NodeDeps } $message
+            }
+            Set-Content (Join-Path $work 'npx.cmd') '@exit /b 0' -Encoding ascii
+            Set-Content (Join-Path $tui.FullName 'fail-npm') ''
+            Assert-Throws { Install-NodeDeps } 'TUI npm installation failed'
+            Remove-Item (Join-Path $tui.FullName 'fail-npm')
+            $script:reachedCua = $false
+            Install-NodeDeps
+            if (-not $script:reachedCua) { throw 'Successful Node stages did not reach CUA.' }
+        } finally { $env:TEMP = $savedTemp }
     }
     Assert-Throws { ConvertTo-HermesStableInstaller -Source ($original.Replace('function Install-CuaDriver {', 'function Unknown-CuaDriver {')) } 'Unsupported upstream installer'
     if ((Get-Content -LiteralPath $InstallerPath -Raw -Encoding UTF8) -cne $original) { throw 'Pinned installer was modified.' }

@@ -1,7 +1,7 @@
 const { createRequire } = require('node:module');
 const path = require('node:path');
 const fs = require('node:fs');
-const { desktopReady } = require('./desktop-readiness.cjs');
+const { waitForDesktopReady, readDesktopUi, assertDesktopSnapshotReady } = require('./desktop-readiness.cjs');
 const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-smoke-deps', 'package.json'))('playwright-core');
 
 (async () => {
@@ -22,22 +22,27 @@ const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-s
   const errors = [];
   let app;
   let page;
+  let snapshot;
+  let afterScreenshot;
   try {
     app = await _electron.launch({ executablePath, env, timeout: 120000 });
     page = await app.firstWindow({ timeout: 120000 });
     page.on('pageerror', error => errors.push(error.message));
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForFunction(desktopReady, expectedVersion, { timeout: 180000, polling: 1000 });
-    const text = await page.locator('body').innerText();
-    if (/ERR_FILE_NOT_FOUND|Cannot find module|JavaScript error occurred|No QueryClient set|Something broke in the interface|Boot failed|Failed to start/i.test(text)) throw new Error(text);
-    if (errors.length) throw new Error(`Desktop renderer errors: ${errors.join('; ')}`);
-    console.log(`Packaged Desktop and backend ${expectedVersion} are ready:`, text.slice(0, 500));
+    await waitForDesktopReady(page, expectedVersion);
   } finally {
     try {
       if (page) {
-        fs.writeFileSync(path.join(outputDir, 'desktop-smoke.txt'), await page.locator('body').innerText());
+        snapshot = await page.evaluate(readDesktopUi);
+        fs.writeFileSync(path.join(outputDir, 'desktop-smoke.txt'), snapshot.text);
+        fs.writeFileSync(path.join(outputDir, 'desktop-smoke-dom.txt'), await page.locator('body').innerText());
         await page.screenshot({ path: path.join(outputDir, 'desktop-smoke.png') });
+        afterScreenshot = await page.evaluate(readDesktopUi);
       }
     } finally { if (app) await app.close(); }
   }
+  assertDesktopSnapshotReady(snapshot);
+  assertDesktopSnapshotReady(afterScreenshot);
+  if (errors.length) throw new Error(`Desktop renderer errors: ${errors.join('; ')}`);
+  console.log(`Packaged Desktop and backend ${expectedVersion} are ready:`, snapshot.text.slice(0, 700));
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -145,10 +145,27 @@ try {
                 $text = Replace-PolicyText $text 'function Install-NodeDeps {' @'
 function Install-NodeDeps {
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { throw 'Stable installation requires npm.' }
-    # This package promises these components. An incomplete stage must fail the
-    # transaction, including errors caught and downgraded by upstream helpers.
-    function Write-Warn { param([string]$Message) throw "Stable Node dependencies: $Message" }
 '@
+                # Check stage results explicitly. Overriding Write-Warn here
+                # also affects nested callers and aborts recoverable CUA repair.
+                $text = Replace-PolicyText $text 'Write-Warn "npm not found on PATH -- skipping Node.js dependencies."' "throw 'Stable installation requires npm.'"
+                $text = Replace-PolicyText $text '$browserNpmOk = _Run-NpmInstall "Browser tools" $InstallDir $browserLog $npmExe' @'
+$browserNpmOk = _Run-NpmInstall "Browser tools" $InstallDir $browserLog $npmExe
+        if (-not $browserNpmOk) { throw 'Stable Node dependencies: Browser tools npm installation failed.' }
+'@
+                $text = Replace-PolicyText $text '[void](_Run-NpmInstall "TUI" $tuiDir $tuiLog $npmExe)' @'
+if (-not (_Run-NpmInstall "TUI" $tuiDir $tuiLog $npmExe)) {
+            throw 'Stable Node dependencies: TUI npm installation failed.'
+        }
+'@
+                foreach ($failure in @(
+                    '"npx not found -- cannot install Playwright Chromium."',
+                    '"Playwright Chromium install timed out after $([math]::Round($nodeDepsTimeoutSec / 60)) minutes."',
+                    '"Playwright Chromium install failed -- exit code $pwCode"',
+                    '"Playwright Chromium install could not be launched: $_"'
+                )) {
+                    $text = Replace-PolicyText $text ("Write-Warn $failure") ("throw $failure")
+                }
                 $text = Replace-PolicyText $text '$deadline = [DateTime]::UtcNow.AddSeconds($timeoutSec)' @'
 # Cache the process handle before it exits. PS 5.1 otherwise loses ExitCode.
         $null = $proc.Handle
