@@ -1,7 +1,7 @@
 const { createRequire } = require('node:module');
 const path = require('node:path');
 const fs = require('node:fs');
-const { waitForDesktopReady, assertDesktopSnapshotReady } = require('./desktop-readiness.cjs');
+const { waitForDesktopReady, readDesktopUi, assertDesktopSnapshotReady } = require('./desktop-readiness.cjs');
 const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-smoke-deps', 'package.json'))('playwright-core');
 
 (async () => {
@@ -22,8 +22,8 @@ const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-s
   const errors = [];
   let app;
   let page;
-  let text;
-  let textAfterScreenshot;
+  let snapshot;
+  let afterScreenshot;
   try {
     app = await _electron.launch({ executablePath, env, timeout: 120000 });
     page = await app.firstWindow({ timeout: 120000 });
@@ -33,15 +33,16 @@ const { _electron } = createRequire(path.join(process.env.RUNNER_TEMP, 'hermes-s
   } finally {
     try {
       if (page) {
-        text = await page.locator('body').innerText();
-        fs.writeFileSync(path.join(outputDir, 'desktop-smoke.txt'), text);
+        snapshot = await page.evaluate(readDesktopUi);
+        fs.writeFileSync(path.join(outputDir, 'desktop-smoke.txt'), snapshot.text);
+        fs.writeFileSync(path.join(outputDir, 'desktop-smoke-dom.txt'), await page.locator('body').innerText());
         await page.screenshot({ path: path.join(outputDir, 'desktop-smoke.png') });
-        textAfterScreenshot = await page.locator('body').innerText();
+        afterScreenshot = await page.evaluate(readDesktopUi);
       }
     } finally { if (app) await app.close(); }
   }
-  assertDesktopSnapshotReady(text);
-  assertDesktopSnapshotReady(textAfterScreenshot);
+  assertDesktopSnapshotReady(snapshot);
+  assertDesktopSnapshotReady(afterScreenshot);
   if (errors.length) throw new Error(`Desktop renderer errors: ${errors.join('; ')}`);
-  console.log(`Packaged Desktop and backend ${expectedVersion} are ready:`, text.slice(0, 500));
+  console.log(`Packaged Desktop and backend ${expectedVersion} are ready:`, snapshot.text.slice(0, 700));
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -2,7 +2,7 @@
 
 ## Desktop packaging
 
-- Revision 5 lets an outdated CUA driver reach its repair job while retaining critical npm and Chromium failure checks. Desktop verification reads the visible UI after the health response and rejects loading states in the captured evidence.
+- Revision 5 lets an outdated CUA driver reach its repair job while retaining critical npm and Chromium failure checks. Desktop verification awaits the resolved health result, accepts usable setup or main-window controls, and rejects visible loading states while ignoring inactive hidden spinners.
 
 - Revision 3 accepts native installer diagnostics on stderr in Windows PowerShell 5.1 while still rejecting nonzero process exit codes.
 
