@@ -194,7 +194,9 @@ The downloaded upstream installer remains pinned and unmodified. The embedded co
 
 - Python dependencies must install through `uv sync --extra all --locked`, with the project's uv settings enabled during that command. Missing/stale locks and failed locked syncs abort instead of resolving a different dependency set from PyPI. Entry-point repair may reinstall the local package with `--no-deps` only.
 - Native dependency subprocesses retain their process handle so Windows PowerShell 5.1 reports the actual exit code. Failed npm or Chromium stages are critical failures.
-- After the Computer Use installer job finishes, the parent refreshes PATH and validates the driver's version and command manifest. An incompatible or missing driver is a critical failure.
+- An existing outdated Computer Use driver is allowed to reach its repair job. After that job finishes, the parent refreshes PATH and validates the driver's version and command manifest. An incompatible or missing driver after repair is a critical failure. Informational warnings do not become exceptions through the Node stage's calling scope.
 - The installer's outer error handler returns a nonzero exit code. Upstream function changes that the policy does not recognize fail preflight rather than silently omitting a fix.
 
 Desktop release validation waits for the setup UI to leave its loading state and for `/api/health` to return `ok: true` with the expected Agent version through the application's local IPC API. Renderer errors fail validation. Test text/screenshots are retained on failed runs as well as successful ones. Pull requests run the full build/install/upgrade/rollback checks without publishing a release or changing the public manifest.
+
+The readiness probe reads the full visible body after the asynchronous health response. The smoke test also rejects loading or error text captured before and after the screenshot, so a UI transition after a successful poll cannot pass validation with incomplete evidence.
