@@ -52,6 +52,25 @@ function Assert-FixtureThrows {
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('hermes-safety-' + [Guid]::NewGuid().ToString('N'))
 try {
     & {
+        $checkout = Join-Path $fixtureRoot 'cache-checkout'
+        New-Item -ItemType Directory -Path (Join-Path $checkout 'scripts') -Force | Out-Null
+        $installer = Join-Path $checkout 'scripts\install.ps1'
+        Set-Content -LiteralPath $installer -Value 'param([string]$Commit, [switch]$ForceCommit)' -Encoding ascii
+        & git -C $checkout init -q
+        & git -C $checkout -c core.autocrlf=false add scripts/install.ps1
+        & git -C $checkout -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm fixture
+        $commit = (& git -C $checkout rev-parse HEAD).Trim()
+        $paths = @{InstallDir=$checkout; HermesHome=$fixtureRoot; StateDir=(Join-Path $fixtureRoot 'cache-state')}
+        $cache = Join-Path $paths.StateDir "rollback-cache\$commit\install.ps1"
+        New-Item -ItemType Directory -Path (Split-Path $cache) -Force | Out-Null
+        Copy-Item -LiteralPath $installer -Destination $cache
+        function Invoke-HermesStableDownload { throw 'fixture network unavailable' }
+        $result = Save-HermesStableRollbackInstaller -Paths $paths -OldCommit $commit
+        if ($result.Path -ne $cache) { throw 'Verified rollback cache was not reused.' }
+        Add-Content -LiteralPath $cache -Value '# corrupted'
+        Assert-FixtureThrows { Save-HermesStableRollbackInstaller -Paths $paths -OldCommit $commit } 'fixture network unavailable'
+    }
+    & {
         $fixturePaths = [pscustomobject]@{
             HermesHome = Join-Path $fixtureRoot 'home'
             InstallDir = Join-Path $fixtureRoot 'home\hermes-agent'

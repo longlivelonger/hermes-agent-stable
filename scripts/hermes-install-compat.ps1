@@ -180,6 +180,43 @@ $proc.WaitForExit()
 '@
             }
             'Install-CuaDriver' {
+                $text = Replace-PolicyText $text '$prevEAP = $ErrorActionPreference' @'
+$job = $null
+    $prevEAP = $ErrorActionPreference
+'@
+                $text = Replace-PolicyText $text 'if (Wait-Job $job -Timeout 660) {' @'
+$finished = $false
+        $interactiveRepair = $false
+        try {
+            $finished = [bool](Wait-Job $job -Timeout 660 -ErrorAction Stop)
+        } catch {
+            if ($job.State -ne 'Blocked') { throw }
+            # CUA installs the binaries before offering interactive daemon
+            # repair. Do not answer prompts or request elevation from Scoop.
+            Stop-Job $job -ErrorAction Stop
+            $interactiveRepair = $true
+        }
+        if ($finished -or $interactiveRepair) {
+'@
+                $text = Replace-PolicyText $text 'Receive-Job $job -ErrorAction SilentlyContinue | Out-Null' @'
+if (-not $interactiveRepair) {
+                Receive-Job $job -ErrorAction Stop | Out-Null
+                if ($job.State -eq 'Failed') { throw 'Computer Use driver background installation failed.' }
+            }
+'@
+                $text = Replace-PolicyText $text 'Write-Success "Computer Use driver installed (enable via ''hermes tools'' -> Computer Use)"' @'
+if ($interactiveRepair) {
+                    Write-Warn 'Computer Use binaries verified; interactive daemon repair was deferred. Run hermes computer-use install in a terminal if Computer Use is unavailable.'
+                }
+                Write-Success "Computer Use driver installed (enable via 'hermes tools' -> Computer Use)"
+'@
+                $text = Replace-PolicyText $text '$ErrorActionPreference = $prevEAP' @'
+if ($job) {
+            Stop-Job $job -ErrorAction SilentlyContinue
+            Remove-Job $job -Force -ErrorAction SilentlyContinue
+        }
+        $ErrorActionPreference = $prevEAP
+'@
                 $text = Replace-PolicyText $text '$installedCuaDriver = Get-Command cua-driver -ErrorAction SilentlyContinue' @'
 # The child job cannot update its parent's environment after adding user PATH.
             Update-ProcessPathForPackages
@@ -238,6 +275,10 @@ function Install-HermesStableCommit {
         '-HermesHome', $Paths.HermesHome,
         '-InstallDir', $Paths.InstallDir
     )
+
+    # CUA is shared user infrastructure, not part of the Agent checkout.
+    # Rolling back Agent must not retry the dependency that broke its update.
+    if ($Label -eq 'rollback') { $arguments += '-SkipComputerUse' }
 
     if ($Label -match '^release (?<tag>v\d{4}\.\d{1,2}\.\d{1,2}(?:\.\d+)?)$') {
         $branchHint = [string]$Matches['tag']

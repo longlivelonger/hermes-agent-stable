@@ -2,6 +2,9 @@
 
 ## Desktop packaging
 
+- Revision 6 handles a CUA repair job blocked by an interactive daemon prompt only when the installed driver passes its runtime contract. It cleans up jobs on all paths, reports deferred daemon repair, preserves actual installation failures, and skips shared CUA installation during Agent rollback. Regression tests use real PowerShell jobs.
+- Reuse rollback installers only after verifying their cached bytes against the exact old Git commit, avoiding redundant GitHub downloads and rate-limit failures.
+
 - Revision 5 lets an outdated CUA driver reach its repair job while retaining critical npm and Chromium failure checks. Desktop verification awaits the resolved health result, accepts usable setup or main-window controls, and rejects visible loading states while ignoring inactive hidden spinners.
 
 - Revision 3 accepts native installer diagnostics on stderr in Windows PowerShell 5.1 while still rejecting nonzero process exit codes.

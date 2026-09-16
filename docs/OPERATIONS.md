@@ -37,9 +37,13 @@ Before changing code, the lifecycle:
 - creates a full backup in `%USERPROFILE%\Hermes Backups\`;
 - validates the ZIP before proceeding.
 
+A previously downloaded rollback installer can be reused when its Git blob hash matches `scripts/install.ps1` in the exact old commit. A missing or mismatched cache requires a download; the commit capability and installer policy checks still apply.
+
 Default retention is 5. Set `HERMES_STABLE_BACKUP_KEEP=0` to keep all, or another non-negative 32-bit integer to change retention.
 
 Critical failure rollback reinstalls the old exact commit using that old-commit installer, verifies `HEAD`, then runs `hermes import <backup> --force`.
+
+Rollback passes `-SkipComputerUse`: the shared CUA driver is outside the Agent checkout and must not prevent restoring Agent. During forward installation, a CUA background job blocked on interactive daemon repair is stopped without answering the prompt. Installation proceeds only if the installed driver passes the full runtime contract after refreshing PATH. A warning directs the user to `hermes computer-use install` if daemon repair is still needed. Download errors, failed jobs, timeouts and incompatible binaries remain fatal.
 
 Receipts:
 
