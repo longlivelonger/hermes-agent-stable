@@ -22,6 +22,35 @@ function Assert-Throws([scriptblock]$Action, [string]$Message) {
 $work = Join-Path ([IO.Path]::GetTempPath()) ('hermes-policy-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $work | Out-Null
 try {
+    # Use real background jobs: a repair can install valid binaries and then
+    # block on an optional daemon/UAC prompt. Never answer it or leak the job.
+    & {
+        $download = 'Invoke-RestMethod -UseBasicParsing "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1" | Invoke-Expression'
+        foreach ($scenario in @('prompt', 'failure')) {
+            $fixture = if ($scenario -eq 'prompt') { 'Read-Host "Trigger UAC prompt? [Y/n]"' } else { 'throw "fixture download failed"' }
+            $fixtureSource = $source.Replace($download, $fixture)
+            if ($fixtureSource -eq $source) { throw 'CUA job fixture anchor missing.' }
+            . (Get-PolicyFunction 'Install-CuaDriver' $fixtureSource)
+            $SkipComputerUse = $false
+            function Write-Info { }; function Write-Success { }
+            function Write-Warn { param($Message) $script:cuaWarning = $Message }
+            function Update-ProcessPathForPackages { $script:pathRefreshed = $true }
+            function Get-Command { if ($script:pathRefreshed) { [pscustomobject]@{Source='fixture-driver.exe'} } }
+            function Test-CuaDriverRuntimeContract { return $script:driverCompatible }
+            $jobsBefore = @(Get-Job | ForEach-Object Id)
+            foreach ($script:driverCompatible in @($true, $false)) {
+                $script:pathRefreshed = $false; $script:cuaWarning = ''
+                if ($scenario -eq 'prompt' -and $script:driverCompatible) {
+                    Install-CuaDriver
+                    if ($script:cuaWarning -notlike '*interactive*') { throw 'Deferred daemon repair was not reported.' }
+                } else {
+                    $message = if ($scenario -eq 'failure') { 'fixture download failed' } else { 'runtime verification failed' }
+                    Assert-Throws { Install-CuaDriver } $message
+                }
+                if (@(Get-Job | Where-Object { $_.Id -notin $jobsBefore }).Count) { throw 'CUA installer leaked a background job.' }
+            }
+        }
+    }
     # Execute the actual upstream helper with the policy applied, under both
     # PowerShell hosts. A zero exit and a nonzero exit must survive identically.
     & {

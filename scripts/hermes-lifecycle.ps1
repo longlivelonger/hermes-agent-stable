@@ -359,6 +359,22 @@ function Save-HermesStableRollbackInstaller {
     $final = Join-Path $dir 'install.ps1'
     $temp = Join-Path $dir ('install-' + [Guid]::NewGuid().ToString('N') + '.tmp')
     $url = "https://raw.githubusercontent.com/NousResearch/hermes-agent/$commit/scripts/install.ps1"
+    # A cached installer is trusted only when its bytes match the Git blob in
+    # the exact rollback commit, not merely because its filename contains a SHA.
+    $git = Get-HermesStableGit -Paths $Paths
+    if ($git -and (Test-Path -LiteralPath $final -PathType Leaf)) {
+        $expected = Invoke-HermesStableGit -Git $git -InstallDir $Paths.InstallDir -Arguments @('rev-parse', ($commit + ':scripts/install.ps1'))
+        $actual = Invoke-HermesStableGit -Git $git -InstallDir $Paths.InstallDir -Arguments @('hash-object', '--no-filters', $final)
+        if ($expected.ExitCode -eq 0 -and $actual.ExitCode -eq 0 -and $expected.Output -match '^[0-9a-f]{40,64}$' -and $actual.Output -eq $expected.Output) {
+            if (-not (Test-HermesStableInstallerCommitCapability -InstallerPath $final)) {
+                throw "Old-commit installer at $commit does not support deterministic -Commit/-ForceCommit rollback."
+            }
+            Assert-HermesStableInstallerPolicy -Installer $final
+            Write-HermesStableInfo "Using rollback installer verified against exact old commit $commit"
+            $hash = (Get-FileHash -LiteralPath $final -Algorithm SHA256).Hash.ToLowerInvariant()
+            return [pscustomobject]@{ Path = $final; Sha256 = $hash; Url = $url }
+        }
+    }
     Write-HermesStableInfo "Prefetching rollback installer from exact old commit $commit"
     try {
         Invoke-HermesStableDownload -Uri $url -OutFile $temp
