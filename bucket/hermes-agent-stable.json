@@ -1,5 +1,5 @@
 {
-  "version": "2026.9.21.6",
+  "version": "2026.9.24.6",
   "description": "Hermes Desktop and pinned stable Agent for Windows x64 (unofficial Scoop package)",
   "homepage": "https://github.com/NousResearch/hermes-agent",
   "license": "MIT",
@@ -1079,12 +1079,12 @@
       "    $shortcut.WorkingDirectory = $Paths.HermesHome",
       "    $shortcut.Save()",
       "}",
-      "Invoke-HermesStableInstall -TargetTag 'v2026.9.21' -TargetCommit 'd337b736aa1e8ebecfab043842d13e4a2d2f48a3' -PackageVersion '2026.9.21.6' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
+      "Invoke-HermesStableInstall -TargetTag 'v2026.9.24' -TargetCommit 'f97608f178d1ffeca59860195ab7da295f7c8e5f' -PackageVersion '2026.9.24.6' -UpstreamInstallerPath (Join-Path $dir 'install.ps1') -DesktopSourcePath (Join-Path $dir 'desktop')"
     ]
   },
   "notes": [
-    "Release tag: v2026.9.21",
-    "Pinned upstream commit: d337b736aa1e8ebecfab043842d13e4a2d2f48a3",
+    "Release tag: v2026.9.24",
+    "Pinned upstream commit: f97608f178d1ffeca59860195ab7da295f7c8e5f",
     "Tracks only official non-draft, non-prerelease Hermes Agent GitHub releases.",
     "Existing installs receive a full pre-update backup in %USERPROFILE%\\Hermes Backups.",
     "Interactive config migrations are intentionally NOT run during package updates; use: hermes config migrate",
@@ -1097,12 +1097,12 @@
   "architecture": {
     "64bit": {
       "url": [
-        "https://raw.githubusercontent.com/NousResearch/hermes-agent/d337b736aa1e8ebecfab043842d13e4a2d2f48a3/scripts/install.ps1",
-        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.21-r6/hermes-desktop-windows-x64.zip"
+        "https://raw.githubusercontent.com/NousResearch/hermes-agent/f97608f178d1ffeca59860195ab7da295f7c8e5f/scripts/install.ps1",
+        "https://github.com/longlivelonger/hermes-agent-stable/releases/download/desktop-v2026.9.24-r6/hermes-desktop-windows-x64.zip"
       ],
       "hash": [
-        "e57d49271c45205e8faae964e59453a2279481d85eadae7d8495df2e31f91ccd",
-        "56976d74e1219b488d4655d86f9a1dc51f2e4b19947bd0b1058f644741909b42"
+        "0a80dfeb7434229933bac32e73140d10086dff81bd84b156e71be9abc87cddf2",
+        "8fc51757ad049d4311bf6782bff00abe987410aea1f0d1091da29606da4e3853"
       ]
     }
   }
